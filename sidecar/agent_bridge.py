@@ -248,17 +248,20 @@ class ApprovalRegistry:
 
     # ---- read side ---------------------------------------------------------
 
-    def check_remember(self, tool_name: str, args: Dict[str, Any]) -> bool:
+    def check_remember(
+        self, tool_name: str, args: Dict[str, Any]
+    ) -> "tuple[bool, Optional[float]]":
+        """Return (hit, expires_at_monotonic). On miss both are (False, None)."""
         key = self._cache_key(tool_name, args)
         now = time.monotonic()
         with self._lock:
             entry = self._remember.get(key)
             if entry is None:
-                return False
+                return (False, None)
             if entry.expires_at <= now:
                 self._remember.pop(key, None)
-                return False
-            return True
+                return (False, None)
+            return (True, entry.expires_at)
 
 
 # Process-wide singleton.
@@ -485,7 +488,8 @@ class AgentRunner:
             }
             # 60s remember cache short-circuit — auto-resolve the underlying
             # approval entry immediately.
-            if APPROVALS.check_remember(tool_name, args):
+            hit, _expires_at = APPROVALS.check_remember(tool_name, args)
+            if hit:
                 from tools import approval as _approval
 
                 _approval.resolve_gateway_approval(self._session_key, "once")
