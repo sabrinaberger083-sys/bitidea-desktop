@@ -1,0 +1,23 @@
+.panel {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-lg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: border-color var(--t), transform var(--t), box-shadow var(--t);
+}
+.panel-top-stripe::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.6;
+  pointer-events: none;
+}
+.panel-hover-glow:hover {
+  border-color: var(--panel-border-strong);
+  box-shadow: var(--glow);
+  transform: translateY(-1px);
+}

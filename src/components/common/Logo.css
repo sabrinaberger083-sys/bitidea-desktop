@@ -1,0 +1,25 @@
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  user-select: none;
+}
+.logo-diamond {
+  color: var(--accent-2);
+  text-shadow: 0 0 12px var(--accent-2);
+  font-size: 0.85em;
+}
+.logo-word {
+  background: var(--grad-title);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.logo-glow {
+  animation: titleGlow 4s ease-in-out infinite alternate;
+}

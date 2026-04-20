@@ -1,0 +1,38 @@
+.input-wrap {
+  padding: 14px 20px 20px;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, transparent, rgba(5, 7, 15, 0.6) 40%);
+}
+.input-bar {
+  max-width: 820px;
+  margin: 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-lg);
+  background: rgba(5, 10, 20, 0.7);
+  padding: 8px 8px 8px 14px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: border-color var(--t), box-shadow var(--t);
+}
+.input-bar:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.15);
+}
+.input-bar textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  padding: 6px 0;
+  resize: none;
+}
+.input-bar textarea::placeholder {
+  color: var(--ink-faint);
+}

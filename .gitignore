@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+/sidecar/.venv/
+/sidecar/venv/
+**/__pycache__/
+*.pyc
+
+# Build output
+/dist/
+/src-tauri/target/
+/src-tauri/gen/
+*.egg-info/
+
+# Editor
+.DS_Store
+.vscode/
+.idea/
+
+# Runtime
+*.log
