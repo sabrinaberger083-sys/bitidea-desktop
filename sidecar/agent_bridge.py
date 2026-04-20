@@ -68,7 +68,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Dict, List, Optional
+from typing import Any, AsyncIterator, Dict, List, Literal, Optional
 
 logger = logging.getLogger("sidecar.agent_bridge")
 
@@ -76,8 +76,6 @@ logger = logging.getLogger("sidecar.agent_bridge")
 # ---------------------------------------------------------------------------
 # Severity classification
 # ---------------------------------------------------------------------------
-
-from typing import Literal
 
 Severity = Literal["read", "write", "destructive", "network", "unknown"]
 
@@ -94,7 +92,7 @@ _SHELL_DESTRUCTIVE_PREFIXES = (
 _SHELL_DESTRUCTIVE_EXACT = {"rm", "mv", "dd"}
 _SHELL_NETWORK_FIRST_TOKENS = {"curl", "wget", "ssh", "scp", "nc", "telnet"}
 _SHELL_WRITE_FIRST_TOKENS = {"mkdir", "touch", "cp", "vim", "nano", "code"}
-_SHELL_READ_FIRST_TOKENS = {"ls", "cat", "head", "tail", "grep", "find", "pwd", "echo", "which"}
+_SHELL_READ_FIRST_TOKENS = {"ls", "cat", "head", "tail", "grep", "pwd", "echo", "which"}
 
 
 def _classify_shell(command: str) -> Severity:

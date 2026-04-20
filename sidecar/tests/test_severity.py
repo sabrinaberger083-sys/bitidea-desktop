@@ -73,6 +73,8 @@ def test_url_in_args_maps_to_network():
         # unknown
         ("somebinary --flag", "unknown"),
         ("cd /tmp && rm -rf foo", "unknown"),  # compound commands classified conservatively
+        ("find /tmp -delete", "unknown"),  # find -delete is destructive; fall through rather than claim read
+        ("find . -exec rm {} +", "unknown"),
         ("", "unknown"),  # empty command
     ],
 )
