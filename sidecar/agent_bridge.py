@@ -74,6 +74,99 @@ logger = logging.getLogger("sidecar.agent_bridge")
 
 
 # ---------------------------------------------------------------------------
+# Severity classification
+# ---------------------------------------------------------------------------
+
+from typing import Literal
+
+Severity = Literal["read", "write", "destructive", "network", "unknown"]
+
+_READ_TOOLS = {"read_file", "list_files", "grep", "glob"}
+_WRITE_TOOLS = {"write_file", "edit_file", "create_file"}
+_DESTRUCTIVE_TOOLS = {"delete_file", "rmdir"}
+_NETWORK_TOOLS = {"http_get", "http_post", "fetch"}
+
+_SHELL_DESTRUCTIVE_PREFIXES = (
+    "rm ", "rm\t",
+    "mv ", "mv\t",
+    "dd ", "dd\t",
+)
+_SHELL_DESTRUCTIVE_EXACT = {"rm", "mv", "dd"}
+_SHELL_NETWORK_FIRST_TOKENS = {"curl", "wget", "ssh", "scp", "nc", "telnet"}
+_SHELL_WRITE_FIRST_TOKENS = {"mkdir", "touch", "cp", "vim", "nano", "code"}
+_SHELL_READ_FIRST_TOKENS = {"ls", "cat", "head", "tail", "grep", "find", "pwd", "echo", "which"}
+
+
+def _classify_shell(command: str) -> Severity:
+    """Classify a shell command by inspecting its leading token(s)."""
+    if not command or not isinstance(command, str):
+        return "unknown"
+    stripped = command.strip()
+    if not stripped:
+        return "unknown"
+
+    # Destructive git patterns (multi-word).
+    if stripped.startswith("git reset --hard"):
+        return "destructive"
+    if stripped.startswith("git push") and (
+        " --force" in stripped or " -f " in stripped or stripped.endswith(" -f")
+    ):
+        return "destructive"
+
+    # Destructive prefix tokens (rm, mv, dd).
+    first = stripped.split(None, 1)[0]
+    if first in _SHELL_DESTRUCTIVE_EXACT:
+        return "destructive"
+    if any(stripped.startswith(p) for p in _SHELL_DESTRUCTIVE_PREFIXES):
+        return "destructive"
+
+    # sed -i is a write (in-place file edit); bare sed would be read but we
+    # lump all under write for safety.
+    if first == "sed":
+        return "write"
+
+    if first in _SHELL_NETWORK_FIRST_TOKENS:
+        return "network"
+    if first in _SHELL_WRITE_FIRST_TOKENS:
+        return "write"
+    if first in _SHELL_READ_FIRST_TOKENS:
+        return "read"
+
+    return "unknown"
+
+
+def classify_tool_severity(tool_name: str, args: Dict[str, Any]) -> Severity:
+    """Return a severity tier for an approval request.
+
+    Bias: unknown categories render at write tier in the UI. We would rather
+    prompt unnecessarily than silently miss a dangerous call.
+    """
+    name = (tool_name or "").strip()
+
+    if name in _READ_TOOLS:
+        return "read"
+    if name in _WRITE_TOOLS:
+        return "write"
+    if name in _DESTRUCTIVE_TOOLS:
+        return "destructive"
+    if name in _NETWORK_TOOLS:
+        return "network"
+
+    # Shell-like tool — parse the command.
+    if name in {"terminal", "shell", "bash", "execute_command"}:
+        cmd = args.get("command") if isinstance(args, dict) else None
+        return _classify_shell(cmd if isinstance(cmd, str) else "")
+
+    # URL-in-args fallback for anything else.
+    if isinstance(args, dict):
+        for v in args.values():
+            if isinstance(v, str) and (v.startswith("http://") or v.startswith("https://")):
+                return "network"
+
+    return "unknown"
+
+
+# ---------------------------------------------------------------------------
 # Approval state
 # ---------------------------------------------------------------------------
 
