@@ -1,29 +1,31 @@
 import { useState } from 'react';
 import type { ToolEvent } from '../../types';
+import { useCountdown } from './useCountdown';
+import { renderToolPreviewLine } from './renderToolPreview';
 import './ToolCard.css';
 
 interface Props {
   tool: ToolEvent;
 }
 
-/** Collapsible terminal-style card showing one tool invocation:
- *  header (name + status icon), args block, streaming output, final result. */
 export default function ToolCard({ tool }: Props) {
   const isRunning = tool.result === undefined;
   const ok = tool.result?.ok ?? true;
-  // Default expanded while running, collapsed once the result lands.
   const [expanded, setExpanded] = useState(true);
 
   const statusGlyph = isRunning ? '◇' : ok ? '✓' : '✕';
   const statusClass = isRunning ? 'running' : ok ? 'ok' : 'fail';
 
-  // Preview line under the header: command text if we have one, otherwise
-  // a compact serialisation of the args object.
+  // Prefer the shared renderer's one-line preview (so terminal tools show
+  // `$ mkdir x` instead of `{"command":"mkdir x"}`). Fall back to the
+  // server-supplied preview string if the helper returns empty.
   const preview =
+    renderToolPreviewLine(tool.name, tool.args) ||
     tool.preview?.trim() ||
-    (tool.args && Object.keys(tool.args).length > 0
-      ? JSON.stringify(tool.args)
-      : '');
+    '';
+
+  const remaining = useCountdown(tool.allowed_until_ms);
+  const showBadge = tool.auto_allowed === true;
 
   return (
     <div className={`tool-card tool-${statusClass}`}>
@@ -38,6 +40,14 @@ export default function ToolCard({ tool }: Props) {
         </span>
         <span className="tool-name">{tool.name || 'tool'}</span>
         {preview && <span className="tool-preview">{preview}</span>}
+        {showBadge && (
+          <span
+            className={`tool-auto ${remaining !== null && remaining <= 0 ? 'tool-auto-fade' : ''}`}
+            aria-label="auto-allowed via remember cache"
+          >
+            ✓ auto{remaining !== null && remaining > 0 ? ` · ${remaining}s` : ''}
+          </span>
+        )}
         <span className="tool-caret" aria-hidden>
           {expanded ? '▾' : '▸'}
         </span>

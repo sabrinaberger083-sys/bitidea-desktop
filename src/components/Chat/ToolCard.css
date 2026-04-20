@@ -119,3 +119,23 @@
 }
 .tool-result-ok .tool-result-label { color: var(--success); }
 .tool-result-fail .tool-result-label { color: var(--danger); }
+
+.tool-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  margin-left: auto;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-xs);
+  background: rgba(34, 197, 94, 0.08);
+  color: var(--success);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  transition: opacity 0.4s ease;
+}
+.tool-auto-fade {
+  opacity: 0.3;
+}
