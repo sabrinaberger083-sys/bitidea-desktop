@@ -1,0 +1,22 @@
+.step-pip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-pill);
+  background: rgba(10, 14, 29, 0.55);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.step-pip-active {
+  border-color: var(--panel-border-strong);
+  color: var(--ink);
+}
+
+.step-label { color: var(--ink-faint); font-weight: 500; }
+.step-count { color: var(--accent-2); }
+.step-pips { letter-spacing: 0.08em; color: var(--accent); }

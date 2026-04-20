@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 type Variant = 'primary' | 'secondary' | 'danger';
@@ -11,14 +12,10 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
 }
 
-export default function Button({
-  variant = 'secondary',
-  size = 'md',
-  arrow = false,
-  children,
-  className,
-  ...rest
-}: ButtonProps) {
+const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { variant = 'secondary', size = 'md', arrow = false, children, className, ...rest },
+  ref,
+) {
   const cls = [
     'btn',
     variant === 'primary' ? 'btn-primary' : '',
@@ -31,9 +28,11 @@ export default function Button({
     .join(' ');
 
   return (
-    <button className={cls} {...rest}>
+    <button ref={ref} className={cls} {...rest}>
       <span>{children}</span>
       {arrow && <span className="arrow" aria-hidden>→</span>}
     </button>
   );
-}
+});
+
+export default Button;

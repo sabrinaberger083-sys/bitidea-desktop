@@ -1,0 +1,159 @@
+/* ══════════════════════════════════════════════════════════
+   Approval modal — centered overlay, terminal aesthetic.
+   ══════════════════════════════════════════════════════════ */
+
+.approve-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(5, 7, 15, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: fadeIn 0.18s ease both;
+}
+
+.approve-card {
+  width: 100%;
+  max-width: 560px;
+  background: var(--panel-solid);
+  border: 1px solid var(--panel-border-strong);
+  border-radius: var(--r-lg);
+  padding: 24px 26px 22px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(245, 158, 11, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--ink);
+}
+.approve-card::before {
+  /* Subtle amber top stripe — danger without shouting. */
+  content: '';
+  display: block;
+  height: 1px;
+  margin: -24px -26px 8px;
+  background: linear-gradient(90deg, transparent, var(--warning), transparent);
+}
+
+.approve-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.18em;
+}
+.approve-glyph {
+  color: var(--warning);
+  font-size: 16px;
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.45);
+}
+.approve-title {
+  color: var(--warning);
+  font-weight: 500;
+}
+
+.approve-sub {
+  color: var(--ink-dim);
+  font-size: 13.5px;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.approve-meta {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 6px 14px;
+  margin: 2px 0 4px;
+  font-family: var(--font-mono);
+}
+.approve-meta dt {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--ink-faint);
+  padding-top: 4px;
+}
+.approve-meta dd {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink);
+  word-break: break-word;
+}
+
+.approve-cmd {
+  margin: 0;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-xs);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--accent-2);
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.approve-remember {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  cursor: pointer;
+  user-select: none;
+}
+.approve-remember input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--panel-border-strong);
+  border-radius: var(--r-xs);
+  background: transparent;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+  transition: border-color var(--t);
+}
+.approve-remember input[type='checkbox']:hover {
+  border-color: var(--accent-2);
+}
+.approve-remember input[type='checkbox']:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.approve-remember input[type='checkbox']:checked::after {
+  content: '✓';
+  position: absolute;
+  top: -2px;
+  left: 1px;
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.approve-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.approve-hint {
+  margin-left: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--ink-faint);
+  opacity: 0.7;
+}
+.btn-primary .approve-hint { color: rgba(5, 10, 20, 0.55); }

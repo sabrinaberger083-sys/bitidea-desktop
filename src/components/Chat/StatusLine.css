@@ -1,0 +1,19 @@
+.status-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-dim);
+  letter-spacing: 0.04em;
+  animation: fadeIn 0.2s ease both;
+}
+.status-dot {
+  color: var(--accent-2);
+  font-size: 13px;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.status-text {
+  font-style: italic;
+}
