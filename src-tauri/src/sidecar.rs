@@ -32,7 +32,22 @@ pub struct SidecarState {
     pub child: Arc<Mutex<Option<Child>>>,
 }
 
-fn find_python() -> String {
+/// Locate the Python interpreter to launch the sidecar with.
+///
+/// Preference order:
+///   1. `sidecar/.venv/bin/python` next to the sidecar package (dev mode).
+///      This matters because v0.2 depends on `bitidea-agent`, which is
+///      installed editable-mode into the venv, *not* the user's system
+///      python. Falling back to system python would crash the sidecar with
+///      `ImportError: run_agent`.
+///   2. `python3` on PATH.
+///   3. `python` on PATH.
+///   4. Literal `python3` as a last resort.
+fn find_python(sidecar_dir: &std::path::Path) -> String {
+    let venv = sidecar_dir.join(".venv").join("bin").join("python");
+    if venv.exists() {
+        return venv.to_string_lossy().into_owned();
+    }
     for candidate in &["python3", "python"] {
         if Command::new(candidate).arg("--version").output().is_ok() {
             return candidate.to_string();
@@ -63,8 +78,8 @@ fn sidecar_dir() -> std::path::PathBuf {
 }
 
 pub fn spawn(state: &SidecarState) {
-    let python = find_python();
     let dir = sidecar_dir();
+    let python = find_python(&dir);
 
     if !dir.exists() {
         let msg = format!("sidecar dir not found: {}", dir.display());
