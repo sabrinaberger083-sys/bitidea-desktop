@@ -5,9 +5,11 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import type {
+  ApprovalRequest,
   Config,
   ConfigInput,
   Message,
+  StepEvent,
   TestResult,
 } from '../types';
 
@@ -110,8 +112,30 @@ export function testConnection(cfg?: ConfigInput): Promise<TestResult> {
 
 /* ── Streaming chat (SSE parser) ───────────────────────────── */
 
+/**
+ * The sidecar streams a rich set of SSE events — plain text deltas plus
+ * tool lifecycle, thinking traces, approval requests, step indicators
+ * and ephemeral status. The ChatWindow supplies the handlers it cares
+ * about; unknown/missing handlers are no-ops.
+ */
 export interface StreamHandlers {
   onToken: (text: string) => void;
+  onThinking?: (text: string) => void;
+  onToolStart?: (tool: {
+    id: string;
+    name: string;
+    args: Record<string, unknown>;
+    preview: string;
+  }) => void;
+  onToolOutput?: (id: string, chunk: string) => void;
+  onToolResult?: (id: string, result: {
+    ok: boolean;
+    summary: string;
+    truncated: boolean;
+  }) => void;
+  onApprovalRequest?: (req: ApprovalRequest) => void;
+  onStep?: (step: StepEvent) => void;
+  onStatus?: (text: string) => void;
   onDone: () => void;
   onError: (message: string) => void;
 }
@@ -142,7 +166,7 @@ export function streamChat(
     handlers.onError(msg);
   };
   const guarded: StreamHandlers = {
-    onToken: handlers.onToken,
+    ...handlers,
     onDone: done,
     onError: fail,
   };
@@ -198,6 +222,21 @@ export function streamChat(
   return controller;
 }
 
+type AnyRecord = Record<string, unknown>;
+
+function str(v: unknown, fallback = ''): string {
+  return typeof v === 'string' ? v : fallback;
+}
+function num(v: unknown, fallback = 0): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+}
+function bool(v: unknown, fallback = false): boolean {
+  return typeof v === 'boolean' ? v : fallback;
+}
+function obj(v: unknown): AnyRecord {
+  return v !== null && typeof v === 'object' ? (v as AnyRecord) : {};
+}
+
 function parseFrame(frame: string, h: StreamHandlers): void {
   let event = 'message';
   const dataLines: string[] = [];
@@ -207,13 +246,78 @@ function parseFrame(frame: string, h: StreamHandlers): void {
   }
   if (dataLines.length === 0) return;
   const raw = dataLines.join('\n');
-  let data: { text?: unknown; message?: unknown };
+  let data: AnyRecord;
   try {
     data = JSON.parse(raw);
   } catch {
     return;
   }
-  if (event === 'token' && typeof data.text === 'string') h.onToken(data.text);
-  else if (event === 'error') h.onError(String(data.message ?? 'unknown error'));
+
+  switch (event) {
+    case 'token':
+      if (typeof data.text === 'string') h.onToken(data.text);
+      return;
+    case 'thinking':
+      h.onThinking?.(str(data.text));
+      return;
+    case 'tool_start':
+      h.onToolStart?.({
+        id: str(data.id),
+        name: str(data.name),
+        args: obj(data.args),
+        preview: str(data.preview),
+      });
+      return;
+    case 'tool_output':
+      h.onToolOutput?.(str(data.id), str(data.chunk));
+      return;
+    case 'tool_result':
+      h.onToolResult?.(str(data.id), {
+        ok: bool(data.ok, true),
+        summary: str(data.summary),
+        truncated: bool(data.truncated),
+      });
+      return;
+    case 'approval_request':
+      h.onApprovalRequest?.({
+        request_id: str(data.request_id),
+        tool_name: str(data.tool_name, 'command'),
+        args: obj(data.args),
+        preview: str(data.preview),
+        received_at: Date.now(),
+      });
+      return;
+    case 'step':
+      h.onStep?.({ n: num(data.n), total: num(data.total) });
+      return;
+    case 'status':
+      h.onStatus?.(str(data.text));
+      return;
+    case 'error':
+      h.onError(str(data.message, 'unknown error'));
+      return;
+    case 'done':
+      // The caller's onDone fires via reader EOF — don't double-fire here.
+      return;
+    default:
+      return;
+  }
+}
+
+/* ── Approval responder ────────────────────────────────────── */
+
+export function respondToApproval(
+  requestId: string,
+  allow: boolean,
+  remember: boolean,
+): Promise<{ ok: true }> {
+  return req<{ ok: true }>('/approval', {
+    method: 'POST',
+    body: JSON.stringify({
+      request_id: requestId,
+      allow,
+      remember,
+    }),
+  });
 }
 

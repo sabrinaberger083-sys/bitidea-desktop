@@ -22,12 +22,84 @@ export interface ConfigInput {
   base_url?: string;
 }
 
+/* ══════════════════════════════════════════════════════════
+   Agent event stream
+   ══════════════════════════════════════════════════════════
+   An assistant message is no longer a single blob of markdown — it is a
+   time-ordered stream of "events" (text deltas, thinking traces, tool
+   cards) that the UI renders inline. The sidecar emits these as SSE
+   frames; the frontend groups them into the nearest message bubble. */
+
+/** Plain LLM token delta — the bread-and-butter of streaming chat. */
+export interface TextEvent {
+  kind: 'text';
+  text: string;
+}
+
+/** Reasoning/thinking trace (o1-style). Collapsible, dimmed in the UI. */
+export interface ThinkingEvent {
+  kind: 'thinking';
+  /** Concatenated thought chunks as they arrive. */
+  text: string;
+}
+
+/** One tool invocation, from start to result. */
+export interface ToolEvent {
+  kind: 'tool';
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+  /** Short human-readable preview emitted at tool_start (command text, etc). */
+  preview?: string;
+  /** Streaming stdout chunks (tool_output events). */
+  output: string;
+  /** Present once tool_result arrives. */
+  result?: {
+    ok: boolean;
+    summary: string;
+    truncated: boolean;
+  };
+}
+
+export type AssistantEvent = TextEvent | ThinkingEvent | ToolEvent;
+
+/** Current multi-step progress indicator. `total=0` means "unknown". */
+export interface StepEvent {
+  n: number;
+  total: number;
+}
+
+/** Ephemeral status line rendered near the assistant bubble. */
+export interface StatusEvent {
+  text: string;
+}
+
+/** A dangerous command that needs the user's permission before it runs. */
+export interface ApprovalRequest {
+  request_id: string;
+  tool_name: string;
+  args: Record<string, unknown>;
+  /** Short human-readable preview (command text, truncated if long). */
+  preview: string;
+  /** Local timestamp at which we received the request. */
+  received_at: number;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
+  /** Plain text for user messages; legacy fallback for assistant messages
+   *  that were rendered before the agent event protocol existed. */
   content: string;
-  /** True while streaming tokens into this message. */
+  /** True while streaming events into this message. */
   streaming?: boolean;
+  /** Time-ordered stream of agent events. Only populated for assistant
+   *  messages that went through the agent loop. */
+  events?: AssistantEvent[];
+  /** Current step indicator (overwritten on each ``step`` event). */
+  step?: StepEvent;
+  /** Latest ephemeral status line. Cleared when streaming ends. */
+  status?: string;
 }
 
 export interface TestResult {
