@@ -364,13 +364,6 @@ class AgentRunner:
         self._session_key = f"bitidea-desktop:{uuid.uuid4().hex[:16]}"
         self._finished = threading.Event()
 
-        # FIFO of (command, expires_at_epoch_ms) pairs — populated when the
-        # remember cache short-circuits a notify(), consumed by the next
-        # matching tool_start event so the ToolCard can render an
-        # auto-allowed badge with a live countdown.
-        self._recent_auto_allowed: List["tuple[str, int]"] = []
-        self._recent_lock = threading.Lock()
-
     # ---- callback factory --------------------------------------------------
 
     def _push(self, event: str, data: Dict[str, Any]) -> None:
@@ -416,19 +409,21 @@ class AgentRunner:
                 args = {}
             tool_id = uuid.uuid4().hex
             tool_ids[name] = tool_id  # last-one-wins; step_cb matches by name
-            # Check whether this invocation was pre-approved via the remember
-            # cache — consume the matching entry if so.
+            # Peek at the remember cache to decide whether this invocation
+            # will be auto-approved. The actual resolve happens later in
+            # notify() when the tool worker hits the guard — this read is
+            # idempotent on the cache (no side effects on a hit) so it's
+            # safe to call here for UI purposes.
             auto_allowed = False
             allowed_until_ms: Optional[int] = None
-            cmd = args.get("command") if isinstance(args, dict) else None
-            if isinstance(cmd, str) and cmd:
-                with self._recent_lock:
-                    for idx, (cached_cmd, until_ms) in enumerate(self._recent_auto_allowed):
-                        if cached_cmd == cmd:
-                            auto_allowed = True
-                            allowed_until_ms = until_ms
-                            self._recent_auto_allowed.pop(idx)
-                            break
+            hit, expires_at_mono = APPROVALS.check_remember(name, args)
+            if hit:
+                auto_allowed = True
+                if expires_at_mono is not None:
+                    delta = expires_at_mono - time.monotonic()
+                    allowed_until_ms = int((time.time() + max(0.0, delta)) * 1000)
+                else:
+                    allowed_until_ms = int(time.time() * 1000)
             frame: Dict[str, Any] = {
                 "id": tool_id,
                 "name": name,
@@ -514,23 +509,13 @@ class AgentRunner:
                 "pattern_key": approval_data.get("pattern_key"),
             }
             # 60s remember cache short-circuit — auto-resolve the underlying
-            # approval entry immediately.
-            hit, expires_at_mono = APPROVALS.check_remember(tool_name, args)
+            # approval entry. The tool_start SSE event emits the auto_allowed
+            # badge by peeking at the same cache (see tool_progress below).
+            hit, _ = APPROVALS.check_remember(tool_name, args)
             if hit:
                 from tools import approval as _approval
 
                 _approval.resolve_gateway_approval(self._session_key, "once")
-                # Translate monotonic expiry to wall-clock epoch ms for the UI.
-                if expires_at_mono is not None:
-                    delta = expires_at_mono - time.monotonic()
-                    until_ms = int((time.time() + max(0.0, delta)) * 1000)
-                else:
-                    until_ms = int(time.time() * 1000)
-                with self._recent_lock:
-                    self._recent_auto_allowed.append((command, until_ms))
-                    # Cap the FIFO so it never grows unbounded.
-                    if len(self._recent_auto_allowed) > 8:
-                        self._recent_auto_allowed.pop(0)
                 self._push(
                     "status",
                     {"text": f"(auto-allowed cached approval: {tool_name})"},
