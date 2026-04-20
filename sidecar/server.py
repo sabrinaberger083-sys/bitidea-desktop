@@ -18,9 +18,12 @@ This server is a *local-only* subprocess spawned by the Tauri desktop app.
    are surfaced to the UI as SSE ``error`` events rather than raw
    tracebacks.
 
-For v0.1 we do NOT depend on the ``bitidea-agent`` package — this
-sidecar is self-contained and calls the provider API directly. The full
-agent loop will be wired in v0.2.
+v0.2 — agent integration
+------------------------
+``POST /chat`` is now backed by bitidea-agent (``AIAgent.run_conversation``)
+running on a worker thread with its callbacks piped through an
+``asyncio.Queue`` into the SSE stream. See ``agent_bridge.py``. All tools
+are enabled. Dangerous commands flow through ``POST /approval``.
 """
 
 from __future__ import annotations
@@ -35,7 +38,9 @@ import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+
+from .agent_bridge import APPROVALS, AgentRunner
 
 VERSION = "0.1.0"
 Provider = Literal["openai", "openrouter", "anthropic", "custom"]
@@ -81,6 +86,12 @@ class ChatMessage(BaseModel):
 
 class ChatIn(BaseModel):
     messages: list[ChatMessage]
+
+
+class ApprovalIn(BaseModel):
+    request_id: str
+    allow: bool
+    remember: bool = False
 
 
 class TestResult(BaseModel):
@@ -246,93 +257,24 @@ async def test_connection(body: Optional[ConfigIn] = None) -> TestResult:
 
 
 # ---------------------------------------------------------------------------
-# Chat streaming
+# Chat streaming (agent-backed)
 # ---------------------------------------------------------------------------
+#
+# SSE protocol (all events JSON-encoded in the ``data:`` field):
+#   token            { text: string }                   — LLM token delta
+#   thinking         { text: string }                   — reasoning trace chunk
+#   tool_start       { id, name, args, preview }        — tool invocation begins
+#   tool_output      { id, chunk: string }              — streamed tool stdout
+#   tool_result      { id, ok, summary, truncated }     — tool finished
+#   approval_request { request_id, tool_name, args, preview } — user prompt
+#   step             { n: int, total: int }             — agent step indicator
+#   status           { text: string }                   — ephemeral status line
+#   error            { message: string }                — terminal error
+#   done             {}                                 — sentinel, stream ends
 
 
 def _sse(event: str, data: dict) -> bytes:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n".encode("utf-8")
-
-
-async def _stream_openai_like(
-    base_url: str, api_key: str, model: str, messages: list[dict]
-) -> AsyncIterator[bytes]:
-    url = f"{base_url}/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "Accept": "text/event-stream",
-    }
-    body = {"model": model, "messages": messages, "stream": True}
-    # connect fast-fail at 15s; no overall read timeout so long generations survive.
-    timeout = httpx.Timeout(connect=15.0, read=None, write=30.0, pool=15.0)
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        async with client.stream("POST", url, headers=headers, json=body) as r:
-            if r.status_code >= 400:
-                err_text = (await r.aread()).decode("utf-8", "replace")[:500]
-                yield _sse("error", {"message": f"HTTP {r.status_code}: {err_text}"})
-                return
-            async for line in r.aiter_lines():
-                if not line or not line.startswith("data:"):
-                    continue
-                payload = line[5:].strip()
-                if payload == "[DONE]":
-                    break
-                try:
-                    obj = json.loads(payload)
-                except json.JSONDecodeError:
-                    continue
-                choices = obj.get("choices") or []
-                if not choices:
-                    continue
-                delta = choices[0].get("delta") or {}
-                text = delta.get("content")
-                if text:
-                    yield _sse("token", {"text": text})
-    yield _sse("done", {})
-
-
-async def _stream_anthropic(
-    base_url: str, api_key: str, model: str, messages: list[dict]
-) -> AsyncIterator[bytes]:
-    url = f"{base_url}/v1/messages"
-    headers = {
-        "x-api-key": api_key,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-        "accept": "text/event-stream",
-    }
-    body: dict = {
-        "model": model,
-        "max_tokens": 4096,
-        "stream": True,
-        "messages": messages,
-    }
-    timeout = httpx.Timeout(connect=15.0, read=None, write=30.0, pool=15.0)
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        async with client.stream("POST", url, headers=headers, json=body) as r:
-            if r.status_code >= 400:
-                err_text = (await r.aread()).decode("utf-8", "replace")[:500]
-                yield _sse("error", {"message": f"HTTP {r.status_code}: {err_text}"})
-                return
-            async for line in r.aiter_lines():
-                if not line or not line.startswith("data:"):
-                    continue
-                payload = line[5:].strip()
-                if not payload:
-                    continue
-                try:
-                    obj = json.loads(payload)
-                except json.JSONDecodeError:
-                    continue
-                etype = obj.get("type")
-                if etype == "content_block_delta":
-                    delta = obj.get("delta") or {}
-                    if delta.get("type") == "text_delta" and delta.get("text"):
-                        yield _sse("token", {"text": delta["text"]})
-                elif etype == "message_stop":
-                    break
-    yield _sse("done", {})
 
 
 @app.post("/chat", dependencies=[Depends(require_token)])
@@ -343,34 +285,60 @@ async def chat(body: ChatIn, request: Request) -> StreamingResponse:
             {"error": "sidecar not configured; POST /config first"}, status_code=400
         )
     provider: Provider = cfg["provider"]
-    base_url = _default_base_url(provider, cfg.get("base_url"))
+    # Validate base_url early so we emit a clean 400 rather than a 500.
+    try:
+        base_url = _default_base_url(provider, cfg.get("base_url"))
+    except HTTPException:
+        raise
     messages = [m.model_dump() for m in body.messages]
+
+    runner = AgentRunner(
+        provider=provider,
+        model=cfg["model"],
+        api_key=cfg["api_key"],
+        base_url=base_url,
+        messages=messages,
+    )
 
     async def gen() -> AsyncIterator[bytes]:
         try:
-            if provider == "anthropic":
-                agen = _stream_anthropic(base_url, cfg["api_key"], cfg["model"], messages)
-            else:
-                agen = _stream_openai_like(
-                    base_url, cfg["api_key"], cfg["model"], messages
-                )
-            async for chunk in agen:
+            async for chunk in runner.stream():
                 if await request.is_disconnected():
+                    APPROVALS.cancel_all()
                     return
                 yield chunk
-        except httpx.HTTPError as exc:
-            import traceback
-            traceback.print_exc()
-            detail = str(exc) or repr(exc) or type(exc).__name__
-            yield _sse("error", {"message": f"upstream {type(exc).__name__}: {detail}"})
         except Exception as exc:  # noqa: BLE001 — surface anything to UI
             import traceback
+
             traceback.print_exc()
             detail = str(exc) or repr(exc) or type(exc).__name__
             yield _sse("error", {"message": f"sidecar {type(exc).__name__}: {detail}"})
+            yield _sse("done", {})
 
     return StreamingResponse(
         gen(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ---------------------------------------------------------------------------
+# Approval resolution
+# ---------------------------------------------------------------------------
+
+
+@app.post("/approval", dependencies=[Depends(require_token)])
+async def approval(body: ApprovalIn) -> dict:
+    """Resolve a pending ``approval_request`` SSE event.
+
+    * ``allow=true, remember=false`` -> allow this one tool call.
+    * ``allow=true, remember=true``  -> allow + cache ``(tool_name, sha256(args))``
+      for 60 seconds. Repeat identical calls skip the modal.
+    * ``allow=false`` -> deny.
+
+    Returns ``{ok: true}`` if we matched a pending request, otherwise 404.
+    """
+    matched = APPROVALS.resolve(body.request_id, body.allow, body.remember)
+    if not matched:
+        raise HTTPException(404, "no pending approval with that request_id")
+    return {"ok": True}
