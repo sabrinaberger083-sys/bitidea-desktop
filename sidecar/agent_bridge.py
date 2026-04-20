@@ -201,6 +201,15 @@ class ApprovalRegistry:
 
     @staticmethod
     def _cache_key(tool_name: str, args: Dict[str, Any]) -> str:
+        # Prefer the raw command string when present — this is the only field
+        # shared across both cache call sites (notify's normalized dict vs.
+        # tool_progress's raw tool args), so keying on it lets reads from one
+        # side hit writes from the other.
+        if isinstance(args, dict):
+            cmd = args.get("command")
+            if isinstance(cmd, str) and cmd:
+                h = hashlib.sha256(cmd.encode("utf-8")).hexdigest()[:32]
+                return f"cmd::{h}"
         try:
             raw = json.dumps(args, sort_keys=True, ensure_ascii=False, default=str)
         except (TypeError, ValueError):

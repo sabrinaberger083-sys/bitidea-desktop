@@ -72,3 +72,48 @@ def test_cache_key_handles_unserialisable_args():
     key = ApprovalRegistry._cache_key("t", bad_args)
     assert isinstance(key, str)
     assert key.startswith("t::")
+
+
+def test_cache_hits_across_asymmetric_call_shapes():
+    """Simulate the real runtime: notify writes under a normalized shape,
+    tool_progress peeks under raw tool-call shape. Both must hit when the
+    underlying command string is the same.
+    """
+    reg = ApprovalRegistry()
+    # Write path: matches notify() in agent_bridge.py line 503-536 (resolve
+    # path via register_pending -> resolve with remember=True).
+    notify_tool_name = "Destructive rm command"
+    notify_args = {
+        "command": "rm -rf /tmp/foo",
+        "description": notify_tool_name,
+        "pattern_key": "rm-recursive",
+    }
+    req = reg.register_pending(notify_tool_name, notify_args)
+    assert reg.resolve(req.request_id, allow=True, remember=True)
+
+    # Read path: matches tool_progress() at line 419 — raw tool name + raw
+    # args dict the LLM passed.
+    raw_tool_name = "terminal"
+    raw_args = {"command": "rm -rf /tmp/foo", "workdir": "/Users/x", "timeout": 60}
+    hit, expires_at = reg.check_remember(raw_tool_name, raw_args)
+    assert hit is True, "peek from tool_progress side must hit entry written from notify side"
+    assert expires_at is not None
+
+
+def test_cache_miss_when_command_differs():
+    """Same tool name, different command: must not hit."""
+    reg = ApprovalRegistry()
+    req = reg.register_pending("t", {"command": "rm -rf /tmp/foo"})
+    assert reg.resolve(req.request_id, allow=True, remember=True)
+
+    hit, _ = reg.check_remember("t", {"command": "rm -rf /tmp/bar"})
+    assert hit is False
+
+
+def test_cache_key_ignores_non_command_fields_when_command_present():
+    """When a command is present, extra fields like pattern_key or workdir
+    must not change the key. This is the property that lets the round-trip work.
+    """
+    k1 = ApprovalRegistry._cache_key("x", {"command": "ls", "pattern_key": "a"})
+    k2 = ApprovalRegistry._cache_key("y", {"command": "ls", "workdir": "/tmp"})
+    assert k1 == k2
