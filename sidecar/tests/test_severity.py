@@ -52,6 +52,7 @@ def test_url_in_args_maps_to_network():
         ("git reset --hard origin/main", "destructive"),
         ("git push --force origin main", "destructive"),
         ("git push -f origin main", "destructive"),
+        ("git push origin main -f", "destructive"),
         # network
         ("curl https://example.com", "network"),
         ("wget https://example.com/x.tar", "network"),
@@ -71,11 +72,19 @@ def test_url_in_args_maps_to_network():
         ("echo hello", "read"),
         # unknown
         ("somebinary --flag", "unknown"),
+        ("cd /tmp && rm -rf foo", "unknown"),  # compound commands classified conservatively
         ("", "unknown"),  # empty command
     ],
 )
 def test_shell_parser(command, expected):
     assert classify_tool_severity("terminal", {"command": command}) == expected
+
+
+def test_shell_tool_name_aliases():
+    """The classifier should treat 'terminal', 'shell', 'bash', 'execute_command' equivalently."""
+    assert classify_tool_severity("shell", {"command": "rm -rf x"}) == "destructive"
+    assert classify_tool_severity("bash", {"command": "curl https://example.com"}) == "network"
+    assert classify_tool_severity("execute_command", {"command": "ls -la"}) == "read"
 
 
 # ---- edge cases ------------------------------------------------------------
