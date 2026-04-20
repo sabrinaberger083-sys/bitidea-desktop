@@ -59,6 +59,10 @@ export interface ToolEvent {
     summary: string;
     truncated: boolean;
   };
+  /** True when this invocation was auto-approved via the 60s remember cache. */
+  auto_allowed?: boolean;
+  /** Epoch ms at which the auto-approval window expires. */
+  allowed_until_ms?: number;
 }
 
 export type AssistantEvent = TextEvent | ThinkingEvent | ToolEvent;
@@ -74,6 +78,8 @@ export interface StatusEvent {
   text: string;
 }
 
+export type Severity = 'read' | 'write' | 'destructive' | 'network' | 'unknown';
+
 /** A dangerous command that needs the user's permission before it runs. */
 export interface ApprovalRequest {
   request_id: string;
@@ -81,6 +87,7 @@ export interface ApprovalRequest {
   args: Record<string, unknown>;
   /** Short human-readable preview (command text, truncated if long). */
   preview: string;
+  severity: Severity;
   /** Local timestamp at which we received the request. */
   received_at: number;
 }

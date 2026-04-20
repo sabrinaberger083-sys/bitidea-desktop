@@ -9,6 +9,7 @@ import type {
   Config,
   ConfigInput,
   Message,
+  Severity,
   StepEvent,
   TestResult,
 } from '../types';
@@ -126,6 +127,8 @@ export interface StreamHandlers {
     name: string;
     args: Record<string, unknown>;
     preview: string;
+    auto_allowed?: boolean;
+    allowed_until_ms?: number;
   }) => void;
   onToolOutput?: (id: string, chunk: string) => void;
   onToolResult?: (id: string, result: {
@@ -266,6 +269,9 @@ function parseFrame(frame: string, h: StreamHandlers): void {
         name: str(data.name),
         args: obj(data.args),
         preview: str(data.preview),
+        auto_allowed: data.auto_allowed === true ? true : undefined,
+        allowed_until_ms:
+          typeof data.allowed_until_ms === 'number' ? data.allowed_until_ms : undefined,
       });
       return;
     case 'tool_output':
@@ -284,6 +290,9 @@ function parseFrame(frame: string, h: StreamHandlers): void {
         tool_name: str(data.tool_name, 'command'),
         args: obj(data.args),
         preview: str(data.preview),
+        severity: (typeof data.severity === 'string'
+          ? (data.severity as Severity)
+          : 'unknown'),
         received_at: Date.now(),
       });
       return;
