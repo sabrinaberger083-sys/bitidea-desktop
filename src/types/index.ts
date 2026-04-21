@@ -113,3 +113,37 @@ export interface TestResult {
   ok: boolean;
   error?: string;
 }
+
+/* ══════════════════════════════════════════════════════════
+   Conversation persistence
+   ══════════════════════════════════════════════════════════ */
+
+export interface Conversation {
+  id: string;
+  title: string;
+  pinned: boolean;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ConversationWithPreview extends Conversation {
+  preview: string;
+  message_count: number;
+}
+
+export interface StoredMessage {
+  id: string;
+  conversation_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  events?: AssistantEvent[];
+  step?: StepEvent;
+  created_at: number;
+}
+
+export interface SearchHit {
+  conversation_id: string;
+  conversation_title: string;
+  message_id: string;
+  snippet: string;
+}
