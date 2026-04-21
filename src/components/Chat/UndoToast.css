@@ -1,0 +1,39 @@
+.undo-toast {
+  position: absolute;
+  bottom: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--panel-solid);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  color: var(--ink-dim);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 20;
+  animation: fadeIn 0.2s ease;
+}
+.undo-btn {
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent-2);
+  border-radius: var(--r-xs);
+  padding: 2px 8px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all var(--t);
+}
+.undo-btn:hover {
+  background: rgba(74, 158, 255, 0.1);
+}
+.undo-dismiss {
+  background: transparent;
+  border: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+  font-size: 12px;
+}
