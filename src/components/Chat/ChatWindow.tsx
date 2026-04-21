@@ -625,6 +625,7 @@ export default function ChatWindow({
           collapsed={sidebarCollapsed}
           undo={convs.undo}
           currentProjectId={currentProjectId}
+          currentProjectPath={currentProjectPath}
           streamingIds={streams.streamingIds}
           onProjectChange={handleProjectChange}
           onToggleCollapse={toggleSidebar}

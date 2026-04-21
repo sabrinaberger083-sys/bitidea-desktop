@@ -42,6 +42,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from .agent_bridge import APPROVALS, AgentRunner
+from .knowledge_base import add_document, remove_document, list_documents, search_chunks
 from .mcp_client import McpManager
 from .mcp_config import McpServerConfig, load_mcp_configs, save_mcp_configs
 
@@ -310,6 +311,35 @@ async def chat(body: ChatIn, request: Request) -> StreamingResponse:
         raise
     messages = [m.model_dump() for m in body.messages]
 
+    # RAG: inject relevant knowledge-base chunks into the last user message
+    if body.project_path:
+        import hashlib as _hl
+
+        project_id = _hl.sha256(body.project_path.encode()).hexdigest()[:16]
+        last_user_msg = ""
+        for m in reversed(body.messages):
+            if m.role == "user":
+                last_user_msg = m.content
+                break
+        if last_user_msg:
+            try:
+                chunks = search_chunks(project_id, last_user_msg, limit=3)
+            except Exception:
+                chunks = []
+            if chunks:
+                context_parts = []
+                for chunk in chunks:
+                    context_parts.append(f"[From: {chunk.doc_name}]\n{chunk.content}")
+                context_block = "\n\n---\n\n".join(context_parts)
+                rag_prefix = (
+                    "<knowledge_base>\n"
+                    "The following excerpts from project documents may be relevant:\n\n"
+                    f"{context_block}\n"
+                    "</knowledge_base>\n\n"
+                )
+                # Prepend to the last user message
+                messages[-1]["content"] = rag_prefix + messages[-1]["content"]
+
     runner = AgentRunner(
         provider=provider,
         model=cfg["model"],
@@ -450,3 +480,59 @@ async def toggle_mcp_server(server_id: str) -> dict:
 @app.get("/mcp/tools", dependencies=[Depends(require_token)])
 async def list_mcp_tools() -> list[dict]:
     return await mcp_manager.get_all_tools()
+
+
+# ---------------------------------------------------------------------------
+# Knowledge Base (per-project document chunking + FTS5 retrieval)
+# ---------------------------------------------------------------------------
+
+
+class KbDocIn(BaseModel):
+    name: str
+    path: str
+    content: str
+
+
+@app.get("/kb/{project_id}/documents", dependencies=[Depends(require_token)])
+async def kb_list_docs(project_id: str) -> list[dict]:
+    docs = list_documents(project_id)
+    return [
+        {
+            "id": d.id,
+            "name": d.name,
+            "path": d.path,
+            "chunk_count": d.chunk_count,
+            "created_at": d.created_at,
+        }
+        for d in docs
+    ]
+
+
+@app.post("/kb/{project_id}/documents", dependencies=[Depends(require_token)])
+async def kb_add_doc(project_id: str, body: KbDocIn) -> dict:
+    doc = add_document(project_id, body.name, body.path, body.content)
+    return {"ok": True, "id": doc.id, "chunk_count": doc.chunk_count}
+
+
+@app.delete("/kb/{project_id}/documents/{doc_id}", dependencies=[Depends(require_token)])
+async def kb_remove_doc(project_id: str, doc_id: str) -> dict:
+    remove_document(project_id, doc_id)
+    return {"ok": True}
+
+
+@app.get("/kb/{project_id}/search", dependencies=[Depends(require_token)])
+async def kb_search(project_id: str, q: str = "", limit: int = 5) -> list[dict]:
+    if not q.strip():
+        return []
+    chunks = search_chunks(project_id, q, limit)
+    return [
+        {
+            "id": c.id,
+            "doc_id": c.doc_id,
+            "doc_name": c.doc_name,
+            "content": c.content,
+            "chunk_index": c.chunk_index,
+            "score": c.score,
+        }
+        for c in chunks
+    ]

@@ -371,3 +371,44 @@ export function listMcpTools(): Promise<Array<{ name: string; description?: stri
   return req<Array<{ name: string; description?: string; _server_name: string }>>('/mcp/tools');
 }
 
+/* ── Knowledge Base ──────────────────────────────────────── */
+
+export interface KbDocument {
+  id: string;
+  name: string;
+  path: string;
+  chunk_count: number;
+  created_at: number;
+}
+
+export interface KbChunk {
+  id: string;
+  doc_id: string;
+  doc_name: string;
+  content: string;
+  chunk_index: number;
+  score: number;
+}
+
+export function listKbDocuments(projectId: string): Promise<KbDocument[]> {
+  return req<KbDocument[]>(`/kb/${projectId}/documents`);
+}
+
+export function addKbDocument(
+  projectId: string,
+  doc: { name: string; path: string; content: string },
+): Promise<{ ok: true; id: string; chunk_count: number }> {
+  return req<{ ok: true; id: string; chunk_count: number }>(`/kb/${projectId}/documents`, {
+    method: 'POST',
+    body: JSON.stringify(doc),
+  });
+}
+
+export function removeKbDocument(projectId: string, docId: string): Promise<{ ok: true }> {
+  return req<{ ok: true }>(`/kb/${projectId}/documents/${docId}`, { method: 'DELETE' });
+}
+
+export function searchKb(projectId: string, query: string, limit = 5): Promise<KbChunk[]> {
+  return req<KbChunk[]>(`/kb/${projectId}/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+}
+

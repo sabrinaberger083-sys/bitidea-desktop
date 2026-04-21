@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import Button from '../common/Button';
 import ConversationItem from './ConversationItem';
 import ConversationMenu from './ConversationMenu';
+import KnowledgePanel from './KnowledgePanel';
 import ProjectPicker from './ProjectPicker';
 import SearchBar from './SearchBar';
 import BatchFooter from './BatchFooter';
@@ -17,6 +18,7 @@ interface Props {
   collapsed: boolean;
   undo: UndoState | null;
   currentProjectId: string | null;
+  currentProjectPath: string | null;
   streamingIds?: Set<string>;
   onProjectChange: (projectId: string | null, projectPath?: string) => void;
   onToggleCollapse: () => void;
@@ -85,6 +87,7 @@ export default function ConversationSidebar({
   collapsed,
   undo,
   currentProjectId,
+  currentProjectPath,
   streamingIds,
   onProjectChange,
   onToggleCollapse,
@@ -156,6 +159,13 @@ export default function ConversationSidebar({
         currentProjectId={currentProjectId}
         onProjectChange={onProjectChange}
       />
+
+      {currentProjectPath && (
+        <KnowledgePanel
+          lang={lang}
+          projectId={currentProjectPath}
+        />
+      )}
 
       <SearchBar
         lang={lang}
