@@ -1,26 +1,43 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Logo from '../common/Logo';
 import Button from '../common/Button';
 import MessageList from './MessageList';
 import InputBox from './InputBox';
 import ApprovalModal from './ApprovalModal';
 import SettingsPanel from '../Settings/SettingsPanel';
+import ConversationSidebar from './ConversationSidebar';
+import ConfirmDeleteModal from './ConfirmDeleteModal';
 import { respondToApproval, streamChat } from '../../lib/sidecar';
+import {
+  deriveTitle,
+  getMessages,
+  getMostRecentConversationId,
+  openDb,
+  updateConversationTimestamp,
+  upsertMessage,
+  vacuumOldDeletions,
+} from '../../lib/db';
+import { conversationToMarkdown, sanitizeFilename } from '../../lib/exportMarkdown';
+import { useConversations } from '../../hooks/useConversations';
 import type {
   ApprovalRequest,
   AssistantEvent,
   Config,
   Lang,
   Message,
+  SearchHit,
+  StoredMessage,
   TextEvent,
   ThinkingEvent,
   ToolEvent,
 } from '../../types';
+import { save as showSaveDialog } from '@tauri-apps/plugin-dialog';
+import { invoke } from '@tauri-apps/api/core';
 import './ChatWindow.css';
 
 const COPY = {
-  en: { newChat: 'NEW', settings: 'SETTINGS' },
-  zh: { newChat: '新对话', settings: '设置' },
+  en: { settings: 'SETTINGS' },
+  zh: { settings: '设置' },
 };
 
 interface Props {
@@ -29,8 +46,6 @@ interface Props {
   config: Config | null;
   onConfigChanged: (c: Config) => void;
 }
-
-/* Helpers for mutating the tail assistant message's event list immutably. */
 
 function updateAssistant(
   msgs: Message[],
@@ -42,8 +57,6 @@ function updateAssistant(
 
 function appendTextEvent(events: AssistantEvent[], text: string): AssistantEvent[] {
   if (!text) return events;
-  // Coalesce consecutive text events into a single markdown block so lists
-  // / code fences stay coherent as tokens trickle in.
   const last = events[events.length - 1];
   if (last && last.kind === 'text') {
     const next: TextEvent = { kind: 'text', text: last.text + text };
@@ -52,12 +65,8 @@ function appendTextEvent(events: AssistantEvent[], text: string): AssistantEvent
   return [...events, { kind: 'text', text }];
 }
 
-function appendThinkingEvent(
-  events: AssistantEvent[],
-  chunk: string,
-): AssistantEvent[] {
+function appendThinkingEvent(events: AssistantEvent[], chunk: string): AssistantEvent[] {
   if (!chunk) return events;
-  // Similarly coalesce consecutive thinking deltas.
   const last = events[events.length - 1];
   if (last && last.kind === 'thinking') {
     const next: ThinkingEvent = { kind: 'thinking', text: last.text + chunk };
@@ -78,6 +87,17 @@ function upsertTool(
   return next;
 }
 
+function storedToMessage(s: StoredMessage): Message {
+  return {
+    id: s.id,
+    role: s.role,
+    content: s.content,
+    events: s.events,
+    step: s.step,
+    streaming: false,
+  };
+}
+
 export default function ChatWindow({
   lang,
   onLangChange,
@@ -85,16 +105,60 @@ export default function ChatWindow({
   onConfigChanged,
 }: Props) {
   const L = COPY[lang];
+  const convs = useConversations();
 
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [approval, setApproval] = useState<ApprovalRequest | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem('ui.sidebar_collapsed') === 'true',
+  );
+  const [confirmDelete, setConfirmDelete] = useState<string[] | null>(null);
+  const [dbReady, setDbReady] = useState(false);
 
-  // Queue of approvals that arrived while another one is already shown.
-  // Kept in a ref (not state) so the resolver callback sees the latest queue.
   const approvalQueueRef = useRef<ApprovalRequest[]>([]);
   const abortRef = useRef<AbortController | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        await openDb();
+        await vacuumOldDeletions();
+        setDbReady(true);
+        const id = await getMostRecentConversationId();
+        if (id) {
+          setConversationId(id);
+          const stored = await getMessages(id);
+          setMessages(stored.map(storedToMessage));
+        }
+      } catch (e) {
+        console.error('DB init failed, running in-memory mode', e);
+        setDbReady(false);
+      }
+    })();
+  }, []);
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((v) => {
+      const next = !v;
+      localStorage.setItem('ui.sidebar_collapsed', String(next));
+      return next;
+    });
+  }, []);
+
+  const loadConversation = useCallback(async (id: string) => {
+    if (streaming) return;
+    try {
+      const stored = await getMessages(id);
+      setMessages(stored.map(storedToMessage));
+      setConversationId(id);
+    } catch (e) {
+      console.error('failed to load conversation', e);
+    }
+  }, [streaming]);
 
   const showNextApproval = useCallback(() => {
     const next = approvalQueueRef.current.shift() || null;
@@ -105,21 +169,79 @@ export default function ChatWindow({
     (allow: boolean, remember: boolean) => {
       const current = approval;
       if (!current) return;
-      // Close immediately — don't block on the network round-trip.
       setApproval(null);
       respondToApproval(current.request_id, allow, remember).catch((err) => {
         console.warn('approval post failed', err);
       });
-      // If more approvals queued up while we were deciding, show the next one.
-      // Next frame so the unmount animation (if any) settles first.
       setTimeout(showNextApproval, 0);
     },
     [approval, showNextApproval],
   );
 
-  function handleSend(text: string) {
+  const schedulePersist = useCallback(
+    (msg: Message, convId: string) => {
+      if (!dbReady) return;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(async () => {
+        try {
+          const stored: StoredMessage = {
+            id: msg.id,
+            conversation_id: convId,
+            role: msg.role,
+            content: msg.content,
+            events: msg.events,
+            step: msg.step,
+            created_at: Date.now(),
+          };
+          await upsertMessage(stored);
+        } catch (e) {
+          console.warn('debounced persist failed', e);
+        }
+      }, 500);
+    },
+    [dbReady],
+  );
+
+  const flushPersist = useCallback(
+    async (msg: Message, convId: string) => {
+      if (!dbReady) return;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      try {
+        const stored: StoredMessage = {
+          id: msg.id,
+          conversation_id: convId,
+          role: msg.role,
+          content: msg.content,
+          events: msg.events,
+          step: msg.step,
+          created_at: Date.now(),
+        };
+        await upsertMessage(stored);
+        await updateConversationTimestamp(convId);
+        convs.refresh();
+      } catch (e) {
+        console.warn('final persist failed', e);
+      }
+    },
+    [dbReady, convs],
+  );
+
+  async function handleSend(text: string) {
     const trimmed = text.trim();
     if (!trimmed || streaming) return;
+
+    let convId = conversationId;
+    if (!convId && dbReady) {
+      convId = crypto.randomUUID();
+      const title = deriveTitle(trimmed);
+      try {
+        await convs.create(convId, title);
+        setConversationId(convId);
+      } catch (e) {
+        console.error('failed to create conversation', e);
+      }
+    }
+    if (!convId) convId = crypto.randomUUID();
 
     const userMsg: Message = {
       id: crypto.randomUUID(),
@@ -137,20 +259,41 @@ export default function ChatWindow({
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
     setStreaming(true);
 
+    if (dbReady) {
+      try {
+        const stored: StoredMessage = {
+          id: userMsg.id,
+          conversation_id: convId,
+          role: 'user',
+          content: userMsg.content,
+          created_at: Date.now(),
+        };
+        await upsertMessage(stored);
+        await updateConversationTimestamp(convId);
+      } catch (e) {
+        console.warn('user message persist failed', e);
+      }
+    }
+
     const history = [...messages, userMsg].map((m) => ({
       role: m.role,
       content: m.content,
     }));
 
+    const capturedConvId = convId;
+
     abortRef.current = streamChat(history, {
       onToken: (txt) => {
-        setMessages((prev) =>
-          updateAssistant(prev, assistantId, (m) => ({
+        setMessages((prev) => {
+          const updated = updateAssistant(prev, assistantId, (m) => ({
             ...m,
             content: m.content + txt,
             events: appendTextEvent(m.events || [], txt),
-          })),
-        );
+          }));
+          const msg = updated.find((m) => m.id === assistantId);
+          if (msg) schedulePersist(msg, capturedConvId);
+          return updated;
+        });
       },
       onThinking: (txt) => {
         setMessages((prev) =>
@@ -173,6 +316,8 @@ export default function ChatWindow({
                 args: t.args,
                 preview: t.preview,
                 output: '',
+                auto_allowed: t.auto_allowed,
+                allowed_until_ms: t.allowed_until_ms,
               } as ToolEvent,
             ],
           })),
@@ -201,8 +346,6 @@ export default function ChatWindow({
         );
       },
       onApprovalRequest: (req) => {
-        // Modal is app-level, not message-level. Show immediately if idle;
-        // otherwise queue.
         setApproval((current) => {
           if (current) {
             approvalQueueRef.current.push(req);
@@ -222,20 +365,23 @@ export default function ChatWindow({
         );
       },
       onDone: () => {
-        setMessages((prev) =>
-          updateAssistant(prev, assistantId, (m) => ({
+        setMessages((prev) => {
+          const updated = updateAssistant(prev, assistantId, (m) => ({
             ...m,
             streaming: false,
             status: undefined,
-          })),
-        );
+          }));
+          const msg = updated.find((m) => m.id === assistantId);
+          if (msg) flushPersist(msg, capturedConvId);
+          return updated;
+        });
         setStreaming(false);
         abortRef.current = null;
       },
       onError: (msg) => {
-        setMessages((prev) =>
-          updateAssistant(prev, assistantId, (m) => {
-            const errorText = `_connection error:_ \`${msg.replace(/`/g, "'")}\``;
+        setMessages((prev) => {
+          const errorText = `_connection error:_ \`${msg.replace(/`/g, "'")}\``;
+          const updated = updateAssistant(prev, assistantId, (m) => {
             const events = (m.events || []).concat({
               kind: 'text',
               text: `\n\n${errorText}`,
@@ -247,8 +393,11 @@ export default function ChatWindow({
               content: m.content || errorText,
               events,
             };
-          }),
-        );
+          });
+          const finalMsg = updated.find((m) => m.id === assistantId);
+          if (finalMsg) flushPersist(finalMsg, capturedConvId);
+          return updated;
+        });
         setStreaming(false);
         abortRef.current = null;
       },
@@ -264,7 +413,6 @@ export default function ChatWindow({
         m.streaming ? { ...m, streaming: false, status: undefined } : m,
       ),
     );
-    // Clear any pending approvals that belong to the cancelled run.
     approvalQueueRef.current = [];
     setApproval(null);
   }
@@ -272,7 +420,80 @@ export default function ChatWindow({
   function handleNewChat() {
     if (streaming) handleStop();
     setMessages([]);
+    setConversationId(null);
   }
+
+  async function handleSelectConversation(id: string) {
+    if (id === conversationId) return;
+    if (streaming) handleStop();
+    await loadConversation(id);
+  }
+
+  async function handleDeleteConversation(id: string, title: string) {
+    await convs.remove(id, title);
+    if (id === conversationId) {
+      const nextId = await getMostRecentConversationId();
+      if (nextId) {
+        await loadConversation(nextId);
+      } else {
+        setMessages([]);
+        setConversationId(null);
+      }
+    }
+  }
+
+  async function handleDeleteMany(ids: string[]) {
+    setConfirmDelete(ids);
+  }
+
+  async function confirmDeleteMany() {
+    if (!confirmDelete) return;
+    await convs.removeMany(confirmDelete);
+    if (confirmDelete.includes(conversationId ?? '')) {
+      const nextId = await getMostRecentConversationId();
+      if (nextId) await loadConversation(nextId);
+      else { setMessages([]); setConversationId(null); }
+    }
+    setConfirmDelete(null);
+  }
+
+  async function handleExport(id: string) {
+    try {
+      const stored = await getMessages(id);
+      const conv = convs.conversations.find((c) => c.id === id);
+      const title = conv?.title ?? 'conversation';
+      const md = conversationToMarkdown(title, stored);
+      const path = await showSaveDialog({
+        defaultPath: `${sanitizeFilename(title)}.md`,
+        filters: [{ name: 'Markdown', extensions: ['md'] }],
+      });
+      if (path) {
+        await invoke('write_text_file', { path, content: md });
+      }
+    } catch (e) {
+      console.error('export failed', e);
+    }
+  }
+
+  async function handleExportMany(ids: string[]) {
+    for (const id of ids) {
+      await handleExport(id);
+    }
+  }
+
+  function handleSearchSelect(hit: SearchHit) {
+    handleSelectConversation(hit.conversation_id);
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key === 'n') { e.preventDefault(); handleNewChat(); }
+      if (mod && e.key === '\\') { e.preventDefault(); toggleSidebar(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [toggleSidebar, streaming]);
 
   return (
     <div className="chat-root">
@@ -281,9 +502,6 @@ export default function ChatWindow({
           <Logo size="sm" />
         </div>
         <div className="row" style={{ gap: 10 }}>
-          <Button size="sm" variant="secondary" onClick={handleNewChat}>
-            + {L.newChat}
-          </Button>
           <Button
             size="sm"
             variant="secondary"
@@ -295,6 +513,25 @@ export default function ChatWindow({
       </header>
 
       <div className="chat-body">
+        <ConversationSidebar
+          lang={lang}
+          conversations={convs.conversations}
+          currentId={conversationId}
+          collapsed={sidebarCollapsed}
+          undo={convs.undo}
+          onToggleCollapse={toggleSidebar}
+          onSelect={handleSelectConversation}
+          onNew={handleNewChat}
+          onRename={convs.rename}
+          onPin={convs.pin}
+          onDelete={handleDeleteConversation}
+          onDeleteMany={handleDeleteMany}
+          onExport={handleExport}
+          onExportMany={handleExportMany}
+          onUndo={convs.undoDelete}
+          onDismissUndo={convs.dismissUndo}
+          onSearchSelect={handleSearchSelect}
+        />
         <main className="chat-center">
           <MessageList messages={messages} lang={lang} />
           <InputBox
@@ -319,6 +556,14 @@ export default function ChatWindow({
         request={approval}
         lang={lang}
         onResolve={handleApprovalResolve}
+      />
+
+      <ConfirmDeleteModal
+        lang={lang}
+        count={confirmDelete?.length ?? 0}
+        open={confirmDelete !== null}
+        onConfirm={confirmDeleteMany}
+        onCancel={() => setConfirmDelete(null)}
       />
     </div>
   );
