@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Button from '../common/Button';
 import LangSwitch from '../common/LangSwitch';
 import McpSettings from './McpSettings';
+import RoutinesSettings from './RoutinesSettings';
 import type { Config, Lang, Provider } from '../../types';
 import { saveConfig } from '../../lib/sidecar';
 import { getPresetsForProvider } from '../../lib/modelPresets';
@@ -225,6 +226,8 @@ export default function SettingsPanel({
           </section>
 
           <McpSettings lang={lang} />
+
+          <RoutinesSettings lang={lang} />
 
           <section className="settings-section">
             <div className="label">{L.section_appearance}</div>

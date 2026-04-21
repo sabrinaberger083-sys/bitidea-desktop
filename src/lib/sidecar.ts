@@ -412,3 +412,54 @@ export function searchKb(projectId: string, query: string, limit = 5): Promise<K
   return req<KbChunk[]>(`/kb/${projectId}/search?q=${encodeURIComponent(query)}&limit=${limit}`);
 }
 
+/* ── Routines (scheduled AI tasks) ─────────────────────── */
+
+export interface RoutineConfig {
+  id: string;
+  name: string;
+  prompt: string;
+  cron: string;
+  project_id?: string | null;
+  project_path?: string | null;
+  enabled: boolean;
+  created_at: number;
+  last_run_at?: number | null;
+  last_status?: string | null;
+}
+
+export interface RoutineRunResult {
+  routine_id: string;
+  started_at: number;
+  finished_at: number;
+  status: string;
+  output: string;
+  error?: string | null;
+}
+
+export function listRoutines(): Promise<RoutineConfig[]> {
+  return req<RoutineConfig[]>('/routines');
+}
+
+export function upsertRoutine(routine: Partial<RoutineConfig> & { name: string; prompt: string }): Promise<{ ok: true; id: string }> {
+  return req<{ ok: true; id: string }>('/routines', {
+    method: 'POST',
+    body: JSON.stringify(routine),
+  });
+}
+
+export function deleteRoutine(id: string): Promise<{ ok: true }> {
+  return req<{ ok: true }>(`/routines/${id}`, { method: 'DELETE' });
+}
+
+export function toggleRoutine(id: string): Promise<{ ok: true; enabled: boolean }> {
+  return req<{ ok: true; enabled: boolean }>(`/routines/${id}/toggle`, { method: 'POST' });
+}
+
+export function runRoutineNow(id: string): Promise<{ ok: true; status: string; output: string }> {
+  return req<{ ok: true; status: string; output: string }>(`/routines/${id}/run`, { method: 'POST' });
+}
+
+export function getRoutineHistory(id: string, limit = 10): Promise<RoutineRunResult[]> {
+  return req<RoutineRunResult[]>(`/routines/${id}/history?limit=${limit}`);
+}
+

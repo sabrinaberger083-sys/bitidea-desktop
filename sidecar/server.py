@@ -31,7 +31,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import secrets
+import time
+import uuid
 from pathlib import Path
 from typing import AsyncIterator, Literal, Optional
 
@@ -45,6 +48,8 @@ from .agent_bridge import APPROVALS, AgentRunner
 from .knowledge_base import add_document, remove_document, list_documents, search_chunks
 from .mcp_client import McpManager
 from .mcp_config import McpServerConfig, load_mcp_configs, save_mcp_configs
+from .routines import Routine, load_routines, save_routines, get_run_history
+from .scheduler import RoutineScheduler
 
 logger = logging.getLogger("sidecar.server")
 
@@ -113,6 +118,16 @@ class McpServerIn(BaseModel):
 class TestResult(BaseModel):
     ok: bool
     error: Optional[str] = None
+
+
+class RoutineIn(BaseModel):
+    id: Optional[str] = None
+    name: str
+    prompt: str
+    cron: str = "09:00"
+    project_id: Optional[str] = None
+    project_path: Optional[str] = None
+    enabled: bool = True
 
 
 # ---------------------------------------------------------------------------
@@ -195,6 +210,9 @@ app = FastAPI(title="Bitidea Sidecar", version=VERSION)
 
 # Global MCP manager
 mcp_manager = McpManager()
+
+# Global routine scheduler
+scheduler = RoutineScheduler()
 
 # Webview and Vite dev server run on different origins than the sidecar
 # (tauri://localhost / http://localhost:1420 vs http://127.0.0.1:<port>).
@@ -536,3 +554,117 @@ async def kb_search(project_id: str, q: str = "", limit: int = 5) -> list[dict]:
         }
         for c in chunks
     ]
+
+
+# ---------------------------------------------------------------------------
+# Routines (scheduled AI tasks)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/routines", dependencies=[Depends(require_token)])
+async def list_routines() -> list[dict]:
+    return [r.to_dict() for r in load_routines()]
+
+
+@app.post("/routines", dependencies=[Depends(require_token)])
+async def upsert_routine(body: RoutineIn) -> dict:
+    routines = load_routines()
+    rid = body.id or uuid.uuid4().hex[:12]
+    now = int(time.time() * 1000)
+    existing = next((r for r in routines if r.id == rid), None)
+    if existing:
+        existing.name = body.name
+        existing.prompt = body.prompt
+        existing.cron = body.cron
+        existing.project_id = body.project_id
+        existing.project_path = body.project_path
+        existing.enabled = body.enabled
+    else:
+        routines.append(Routine(
+            id=rid, name=body.name, prompt=body.prompt, cron=body.cron,
+            project_id=body.project_id, project_path=body.project_path,
+            enabled=body.enabled, created_at=now,
+        ))
+    save_routines(routines)
+    return {"ok": True, "id": rid}
+
+
+@app.delete("/routines/{routine_id}", dependencies=[Depends(require_token)])
+async def delete_routine(routine_id: str) -> dict:
+    routines = load_routines()
+    routines = [r for r in routines if r.id != routine_id]
+    save_routines(routines)
+    return {"ok": True}
+
+
+@app.post("/routines/{routine_id}/toggle", dependencies=[Depends(require_token)])
+async def toggle_routine(routine_id: str) -> dict:
+    routines = load_routines()
+    for r in routines:
+        if r.id == routine_id:
+            r.enabled = not r.enabled
+            save_routines(routines)
+            return {"ok": True, "enabled": r.enabled}
+    return {"ok": False, "error": "not found"}
+
+
+@app.post("/routines/{routine_id}/run", dependencies=[Depends(require_token)])
+async def run_routine_now(routine_id: str) -> dict:
+    routines = load_routines()
+    routine = next((r for r in routines if r.id == routine_id), None)
+    if not routine:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    result = await scheduler.run_routine_now(routine)
+    return {"ok": True, "status": result.status, "output": result.output[:500]}
+
+
+@app.get("/routines/{routine_id}/history", dependencies=[Depends(require_token)])
+async def routine_history(routine_id: str, limit: int = 10) -> list[dict]:
+    return get_run_history(routine_id, limit)
+
+
+# ---------------------------------------------------------------------------
+# Routine scheduler lifecycle
+# ---------------------------------------------------------------------------
+
+
+@app.on_event("startup")
+async def startup_scheduler() -> None:
+    """Start the background routine scheduler with an agent-backed callback."""
+
+    async def run_prompt(prompt: str, project_path: Optional[str] = None) -> str:
+        cfg = _load_config()
+        if not cfg.get("api_key"):
+            return "(no API key configured)"
+
+        provider = cfg["provider"]
+        base_url = _default_base_url(provider, cfg.get("base_url"))
+
+        runner = AgentRunner(
+            provider=provider,
+            model=cfg["model"],
+            api_key=cfg["api_key"],
+            base_url=base_url,
+            messages=[{"role": "user", "content": prompt}],
+            project_path=project_path,
+        )
+
+        output_parts: list[str] = []
+        async for chunk in runner.stream():
+            text = chunk.decode("utf-8", errors="ignore")
+            if "event: token" in text:
+                m = re.search(r'"text"\s*:\s*"((?:[^"\\]|\\.)*)"', text)
+                if m:
+                    output_parts.append(
+                        m.group(1).encode().decode("unicode_escape")
+                    )
+
+        return "".join(output_parts)
+
+    scheduler.set_run_callback(run_prompt)
+    await scheduler.start()
+
+
+@app.on_event("shutdown")
+async def shutdown_scheduler() -> None:
+    await scheduler.stop()
