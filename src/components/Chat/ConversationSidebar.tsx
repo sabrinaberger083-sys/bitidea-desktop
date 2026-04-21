@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import Button from '../common/Button';
 import ConversationItem from './ConversationItem';
 import ConversationMenu from './ConversationMenu';
+import ProjectPicker from './ProjectPicker';
 import SearchBar from './SearchBar';
 import BatchFooter from './BatchFooter';
 import UndoToast from './UndoToast';
@@ -15,6 +16,8 @@ interface Props {
   currentId: string | null;
   collapsed: boolean;
   undo: UndoState | null;
+  currentProjectId: string | null;
+  onProjectChange: (projectId: string | null, projectPath?: string) => void;
   onToggleCollapse: () => void;
   onSelect: (id: string) => void;
   onNew: () => void;
@@ -80,6 +83,8 @@ export default function ConversationSidebar({
   currentId,
   collapsed,
   undo,
+  currentProjectId,
+  onProjectChange,
   onToggleCollapse,
   onSelect,
   onNew,
@@ -143,6 +148,12 @@ export default function ConversationSidebar({
           {L.collapse}
         </button>
       </div>
+
+      <ProjectPicker
+        lang={lang}
+        currentProjectId={currentProjectId}
+        onProjectChange={onProjectChange}
+      />
 
       <SearchBar
         lang={lang}

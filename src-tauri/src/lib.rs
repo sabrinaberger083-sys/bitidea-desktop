@@ -38,6 +38,24 @@ CREATE VIRTUAL TABLE messages_fts USING fts5(
 );
 "#,
         kind: MigrationKind::Up,
+    },
+    Migration {
+        version: 2,
+        description: "add projects table and link conversations",
+        sql: r#"
+CREATE TABLE projects (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  path        TEXT NOT NULL UNIQUE,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
+);
+CREATE INDEX idx_project_path ON projects (path);
+
+ALTER TABLE conversations ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
+CREATE INDEX idx_conv_project ON conversations (project_id);
+"#,
+        kind: MigrationKind::Up,
     }]
 }
 

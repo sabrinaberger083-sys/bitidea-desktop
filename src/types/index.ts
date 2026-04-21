@@ -118,17 +118,27 @@ export interface TestResult {
    Conversation persistence
    ══════════════════════════════════════════════════════════ */
 
+export interface Project {
+  id: string;
+  name: string;
+  path: string;        // absolute directory path
+  created_at: number;
+  updated_at: number;
+}
+
 export interface Conversation {
   id: string;
   title: string;
   pinned: boolean;
   created_at: number;
   updated_at: number;
+  project_id?: string | null;
 }
 
 export interface ConversationWithPreview extends Conversation {
   preview: string;
   message_count: number;
+  project_name?: string;
 }
 
 export interface StoredMessage {

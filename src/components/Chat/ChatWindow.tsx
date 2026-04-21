@@ -22,6 +22,7 @@ import {
 import { conversationToMarkdown, sanitizeFilename } from '../../lib/exportMarkdown';
 import { useConversations } from '../../hooks/useConversations';
 import type { Artifact } from '../../lib/artifacts';
+import { getProject } from '../../lib/db';
 import type {
   ApprovalRequest,
   AssistantEvent,
@@ -108,7 +109,13 @@ export default function ChatWindow({
   onConfigChanged,
 }: Props) {
   const L = COPY[lang];
-  const convs = useConversations();
+
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(
+    () => localStorage.getItem('ui.current_project_id') || null,
+  );
+  const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
+
+  const convs = useConversations(currentProjectId);
 
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -132,6 +139,20 @@ export default function ChatWindow({
         await openDb();
         await vacuumOldDeletions();
         setDbReady(true);
+        // Restore project path from persisted project id
+        const savedProjectId = localStorage.getItem('ui.current_project_id');
+        if (savedProjectId) {
+          try {
+            const proj = await getProject(savedProjectId);
+            if (proj) {
+              setCurrentProjectPath(proj.path);
+            } else {
+              // Project was deleted — clear stale reference
+              localStorage.removeItem('ui.current_project_id');
+              setCurrentProjectId(null);
+            }
+          } catch { /* ignore */ }
+        }
         const id = await getMostRecentConversationId();
         if (id) {
           setConversationId(id);
@@ -239,7 +260,7 @@ export default function ChatWindow({
       convId = crypto.randomUUID();
       const title = deriveTitle(trimmed);
       try {
-        await convs.create(convId, title);
+        await convs.create(convId, title, currentProjectId);
         setConversationId(convId);
       } catch (e) {
         console.error('failed to create conversation', e);
@@ -405,7 +426,7 @@ export default function ChatWindow({
         setStreaming(false);
         abortRef.current = null;
       },
-    });
+    }, currentProjectPath ? { projectPath: currentProjectPath } : undefined);
   }
 
   function handleStop() {
@@ -419,6 +440,19 @@ export default function ChatWindow({
     );
     approvalQueueRef.current = [];
     setApproval(null);
+  }
+
+  function handleProjectChange(projectId: string | null, projectPath?: string) {
+    setCurrentProjectId(projectId);
+    setCurrentProjectPath(projectPath ?? null);
+    if (projectId) {
+      localStorage.setItem('ui.current_project_id', projectId);
+    } else {
+      localStorage.removeItem('ui.current_project_id');
+    }
+    // Reset to no active conversation when switching projects
+    setMessages([]);
+    setConversationId(null);
   }
 
   function handleNewChat() {
@@ -538,6 +572,8 @@ export default function ChatWindow({
           currentId={conversationId}
           collapsed={sidebarCollapsed}
           undo={convs.undo}
+          currentProjectId={currentProjectId}
+          onProjectChange={handleProjectChange}
           onToggleCollapse={toggleSidebar}
           onSelect={handleSelectConversation}
           onNew={handleNewChat}

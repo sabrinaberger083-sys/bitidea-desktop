@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ConversationWithPreview } from '../types';
 import {
   countPinned,
@@ -17,15 +17,15 @@ export interface UndoState {
   timer: ReturnType<typeof setTimeout>;
 }
 
-export function useConversations() {
-  const [conversations, setConversations] = useState<ConversationWithPreview[]>([]);
+export function useConversations(projectId?: string | null) {
+  const [allConversations, setAllConversations] = useState<ConversationWithPreview[]>([]);
   const [loading, setLoading] = useState(true);
   const [undo, setUndo] = useState<UndoState | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       const list = await listConversations();
-      setConversations(list);
+      setAllConversations(list);
     } catch (e) {
       console.error('failed to load conversations', e);
     } finally {
@@ -37,9 +37,15 @@ export function useConversations() {
     refresh();
   }, [refresh]);
 
+  // Filter conversations by project when one is selected
+  const conversations = useMemo(() => {
+    if (!projectId) return allConversations;
+    return allConversations.filter((c) => c.project_id === projectId);
+  }, [allConversations, projectId]);
+
   const create = useCallback(
-    async (id: string, title: string) => {
-      await createConversation(id, title);
+    async (id: string, title: string, projId?: string | null) => {
+      await createConversation(id, title, projId);
       await refresh();
     },
     [refresh],

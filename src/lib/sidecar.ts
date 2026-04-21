@@ -150,6 +150,7 @@ export interface StreamHandlers {
 export function streamChat(
   messages: Pick<Message, 'role' | 'content'>[],
   handlers: StreamHandlers,
+  options?: { projectPath?: string },
 ): AbortController {
   const controller = new AbortController();
   const { url } = getBase();
@@ -177,10 +178,12 @@ export function streamChat(
   (async () => {
     let res: Response;
     try {
+      const chatBody: Record<string, unknown> = { messages };
+      if (options?.projectPath) chatBody.project_path = options.projectPath;
       res = await fetch(`${url}/chat`, {
         method: 'POST',
         headers: headers(),
-        body: JSON.stringify({ messages }),
+        body: JSON.stringify(chatBody),
         signal: controller.signal,
       });
     } catch (err) {

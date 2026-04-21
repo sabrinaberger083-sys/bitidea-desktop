@@ -3,6 +3,7 @@ import type {
   AssistantEvent,
   Conversation,
   ConversationWithPreview,
+  Project,
   SearchHit,
   StepEvent,
   StoredMessage,
@@ -28,15 +29,19 @@ export async function listConversations(): Promise<ConversationWithPreview[]> {
       pinned: number;
       created_at: number;
       updated_at: number;
+      project_id: string | null;
       preview: string | null;
       message_count: number;
+      project_name: string | null;
     }>
   >(
-    `SELECT c.id, c.title, c.pinned, c.created_at, c.updated_at,
+    `SELECT c.id, c.title, c.pinned, c.created_at, c.updated_at, c.project_id,
        (SELECT substr(m.content, 1, 80) FROM messages m
         WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS preview,
-       (SELECT count(*) FROM messages m WHERE m.conversation_id = c.id) AS message_count
+       (SELECT count(*) FROM messages m WHERE m.conversation_id = c.id) AS message_count,
+       p.name AS project_name
      FROM conversations c
+     LEFT JOIN projects p ON c.project_id = p.id
      WHERE c.deleted_at IS NULL
      ORDER BY c.pinned DESC, c.updated_at DESC`,
   );
@@ -46,8 +51,10 @@ export async function listConversations(): Promise<ConversationWithPreview[]> {
     pinned: r.pinned === 1,
     created_at: r.created_at,
     updated_at: r.updated_at,
+    project_id: r.project_id,
     preview: r.preview ?? '',
     message_count: r.message_count,
+    project_name: r.project_name ?? undefined,
   }));
 }
 
@@ -60,22 +67,23 @@ export async function getConversation(id: string): Promise<Conversation | null> 
       pinned: number;
       created_at: number;
       updated_at: number;
+      project_id: string | null;
     }>
   >(
-    'SELECT id, title, pinned, created_at, updated_at FROM conversations WHERE id = $1 AND deleted_at IS NULL',
+    'SELECT id, title, pinned, created_at, updated_at, project_id FROM conversations WHERE id = $1 AND deleted_at IS NULL',
     [id],
   );
   if (rows.length === 0) return null;
   const r = rows[0];
-  return { id: r.id, title: r.title, pinned: r.pinned === 1, created_at: r.created_at, updated_at: r.updated_at };
+  return { id: r.id, title: r.title, pinned: r.pinned === 1, created_at: r.created_at, updated_at: r.updated_at, project_id: r.project_id };
 }
 
-export async function createConversation(id: string, title: string): Promise<void> {
+export async function createConversation(id: string, title: string, projectId?: string | null): Promise<void> {
   const db = await openDb();
   const now = Date.now();
   await db.execute(
-    'INSERT INTO conversations (id, title, pinned, created_at, updated_at) VALUES ($1, $2, 0, $3, $4)',
-    [id, title, now, now],
+    'INSERT INTO conversations (id, title, pinned, created_at, updated_at, project_id) VALUES ($1, $2, 0, $3, $4, $5)',
+    [id, title, now, now, projectId ?? null],
   );
 }
 
@@ -260,6 +268,98 @@ export async function vacuumOldDeletions(): Promise<void> {
     `DELETE FROM conversations WHERE id IN (${placeholders})`,
     ids,
   );
+}
+
+// ── Projects ──────────────────────────────────────────────
+
+export async function listProjects(): Promise<Project[]> {
+  const db = await openDb();
+  return db.select<Project[]>(
+    'SELECT id, name, path, created_at, updated_at FROM projects ORDER BY updated_at DESC',
+  );
+}
+
+export async function getProject(id: string): Promise<Project | null> {
+  const db = await openDb();
+  const rows = await db.select<Project[]>(
+    'SELECT id, name, path, created_at, updated_at FROM projects WHERE id = ?',
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
+export async function getProjectByPath(path: string): Promise<Project | null> {
+  const db = await openDb();
+  const rows = await db.select<Project[]>(
+    'SELECT id, name, path, created_at, updated_at FROM projects WHERE path = ?',
+    [path],
+  );
+  return rows[0] ?? null;
+}
+
+export async function createProject(id: string, name: string, path: string): Promise<void> {
+  const db = await openDb();
+  const now = Date.now();
+  await db.execute(
+    'INSERT INTO projects (id, name, path, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+    [id, name, path, now, now],
+  );
+}
+
+export async function renameProject(id: string, name: string): Promise<void> {
+  const db = await openDb();
+  await db.execute(
+    'UPDATE projects SET name = ?, updated_at = ? WHERE id = ?',
+    [name, Date.now(), id],
+  );
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  const db = await openDb();
+  await db.execute('UPDATE conversations SET project_id = NULL WHERE project_id = ?', [id]);
+  await db.execute('DELETE FROM projects WHERE id = ?', [id]);
+}
+
+export async function setConversationProject(conversationId: string, projectId: string | null): Promise<void> {
+  const db = await openDb();
+  await db.execute(
+    'UPDATE conversations SET project_id = ? WHERE id = ?',
+    [projectId, conversationId],
+  );
+}
+
+export async function listConversationsForProject(projectId: string): Promise<ConversationWithPreview[]> {
+  const db = await openDb();
+  const rows = await db.select<
+    Array<{
+      id: string;
+      title: string;
+      pinned: number;
+      created_at: number;
+      updated_at: number;
+      project_id: string | null;
+      preview: string | null;
+      message_count: number;
+    }>
+  >(
+    `SELECT c.id, c.title, c.pinned, c.created_at, c.updated_at, c.project_id,
+            COALESCE((SELECT SUBSTR(m.content, 1, 80) FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1), '') AS preview,
+            (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) AS message_count
+     FROM conversations c
+     WHERE c.project_id = ? AND c.deleted_at IS NULL
+     ORDER BY c.pinned DESC, c.updated_at DESC`,
+    [projectId],
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    pinned: r.pinned === 1,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+    project_id: r.project_id,
+    preview: r.preview ?? '',
+    message_count: r.message_count,
+  }));
 }
 
 // ── Title derivation ───────────────────────────────────────

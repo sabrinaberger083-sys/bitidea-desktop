@@ -358,6 +358,7 @@ class AgentRunner:
         api_key: str,
         base_url: Optional[str],
         messages: List[Dict[str, str]],
+        project_path: Optional[str] = None,
     ) -> None:
         self.provider = provider
         self.model = model
@@ -366,6 +367,7 @@ class AgentRunner:
             provider, _infer_base_url(provider, base_url)
         )
         self.messages = messages
+        self.project_path = project_path
 
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._queue: Optional[asyncio.Queue[bytes]] = None
@@ -566,7 +568,14 @@ class AgentRunner:
 
     def _run_agent_sync(self) -> None:
         """Runs in a worker thread. Instantiates AIAgent and drives it."""
+        prev_cwd: Optional[str] = None
         try:
+            # If a project path was supplied, switch the worker thread's cwd so
+            # file-based tools operate relative to the project directory.
+            if self.project_path and os.path.isdir(self.project_path):
+                prev_cwd = os.getcwd()
+                os.chdir(self.project_path)
+
             # Route bitidea-agent state away from ~/.bitidea/ to keep Desktop
             # isolated from the standalone CLI.
             os.environ["BITIDEA_HOME"] = _agent_state_dir()
@@ -630,6 +639,12 @@ class AgentRunner:
             logger.exception("agent run failed")
             self._push("error", {"message": f"{type(exc).__name__}: {exc}"})
         finally:
+            # Restore original working directory if we changed it.
+            if prev_cwd is not None:
+                try:
+                    os.chdir(prev_cwd)
+                except OSError:
+                    pass
             # Deny anything still waiting so no thread leaks.
             APPROVALS.cancel_all()
             self._push("done", {})
