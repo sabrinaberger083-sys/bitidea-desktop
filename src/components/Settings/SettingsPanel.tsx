@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Button from '../common/Button';
 import LangSwitch from '../common/LangSwitch';
+import McpSettings from './McpSettings';
 import type { Config, Lang, Provider } from '../../types';
 import { saveConfig } from '../../lib/sidecar';
 import { getPresetsForProvider } from '../../lib/modelPresets';
@@ -222,6 +223,8 @@ export default function SettingsPanel({
             <div className="label">{L.language}</div>
             <LangSwitch lang={lang} onChange={onLangChange} />
           </section>
+
+          <McpSettings lang={lang} />
 
           <section className="settings-section">
             <div className="label">{L.section_appearance}</div>

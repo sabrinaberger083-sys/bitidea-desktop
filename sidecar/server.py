@@ -29,6 +29,7 @@ are enabled. Dangerous commands flow through ``POST /approval``.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import secrets
 from pathlib import Path
@@ -41,6 +42,10 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from .agent_bridge import APPROVALS, AgentRunner
+from .mcp_client import McpManager
+from .mcp_config import McpServerConfig, load_mcp_configs, save_mcp_configs
+
+logger = logging.getLogger("sidecar.server")
 
 VERSION = "0.1.0"
 Provider = Literal["openai", "openrouter", "anthropic", "custom"]
@@ -93,6 +98,15 @@ class ApprovalIn(BaseModel):
     request_id: str
     allow: bool
     remember: bool = False
+
+
+class McpServerIn(BaseModel):
+    id: str
+    name: str
+    command: str
+    args: list[str] = []
+    env: dict[str, str] = {}
+    enabled: bool = True
 
 
 class TestResult(BaseModel):
@@ -177,6 +191,9 @@ async def require_token(
 # ---------------------------------------------------------------------------
 
 app = FastAPI(title="Bitidea Sidecar", version=VERSION)
+
+# Global MCP manager
+mcp_manager = McpManager()
 
 # Webview and Vite dev server run on different origins than the sidecar
 # (tauri://localhost / http://localhost:1420 vs http://127.0.0.1:<port>).
@@ -344,3 +361,92 @@ async def approval(body: ApprovalIn) -> dict:
     if not matched:
         raise HTTPException(404, "no pending approval with that request_id")
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# MCP server management
+# ---------------------------------------------------------------------------
+
+
+@app.on_event("startup")
+async def startup_mcp() -> None:
+    configs = load_mcp_configs()
+    for c in configs:
+        if c.enabled:
+            try:
+                await mcp_manager.start_server(c)
+            except Exception:
+                logger.exception("Failed to start MCP server %s", c.name)
+
+
+@app.on_event("shutdown")
+async def shutdown_mcp() -> None:
+    await mcp_manager.stop_all()
+
+
+@app.get("/mcp/servers", dependencies=[Depends(require_token)])
+async def list_mcp_servers() -> list[dict]:
+    configs = load_mcp_configs()
+    result = []
+    for c in configs:
+        d = c.to_dict()
+        client = mcp_manager.get_client(c.id)
+        d["running"] = client is not None
+        d["tool_count"] = len(await client.list_tools()) if client else 0
+        result.append(d)
+    return result
+
+
+@app.post("/mcp/servers", dependencies=[Depends(require_token)])
+async def add_mcp_server(body: McpServerIn) -> dict:
+    configs = load_mcp_configs()
+    new_config = McpServerConfig(
+        id=body.id,
+        name=body.name,
+        command=body.command,
+        args=body.args,
+        env=body.env,
+        enabled=body.enabled,
+    )
+    configs = [c for c in configs if c.id != body.id]  # upsert
+    configs.append(new_config)
+    save_mcp_configs(configs)
+    if body.enabled:
+        try:
+            await mcp_manager.start_server(new_config)
+        except Exception as e:
+            return {"ok": True, "warning": str(e)}
+    return {"ok": True}
+
+
+@app.delete("/mcp/servers/{server_id}", dependencies=[Depends(require_token)])
+async def remove_mcp_server(server_id: str) -> dict:
+    await mcp_manager.stop_server(server_id)
+    configs = load_mcp_configs()
+    configs = [c for c in configs if c.id != server_id]
+    save_mcp_configs(configs)
+    return {"ok": True}
+
+
+@app.post("/mcp/servers/{server_id}/toggle", dependencies=[Depends(require_token)])
+async def toggle_mcp_server(server_id: str) -> dict:
+    configs = load_mcp_configs()
+    for c in configs:
+        if c.id == server_id:
+            c.enabled = not c.enabled
+            if c.enabled:
+                try:
+                    await mcp_manager.start_server(c)
+                except Exception as e:
+                    save_mcp_configs(configs)
+                    return {"ok": True, "enabled": c.enabled, "error": str(e)}
+            else:
+                await mcp_manager.stop_server(server_id)
+            save_mcp_configs(configs)
+            return {"ok": True, "enabled": c.enabled}
+    return {"ok": False, "error": "not found"}
+
+
+@app.get("/mcp/tools", dependencies=[Depends(require_token)])
+async def list_mcp_tools() -> list[dict]:
+    return await mcp_manager.get_all_tools()

@@ -98,3 +98,92 @@
   border-top: 1px solid var(--panel-border);
   flex-shrink: 0;
 }
+
+/* ── MCP server list ──────────────────────────────────────── */
+.mcp-server-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-xs);
+  background: rgba(5, 10, 20, 0.4);
+}
+.mcp-server-info {
+  flex: 1;
+  min-width: 0;
+}
+.mcp-server-name {
+  font-size: 13px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mcp-server-meta {
+  font-size: 12px;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mcp-server-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ── Toggle switch ────────────────────────────────────────── */
+.mcp-toggle-label {
+  position: relative;
+  display: inline-flex;
+  cursor: pointer;
+}
+.mcp-toggle-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.mcp-toggle-track {
+  width: 32px;
+  height: 18px;
+  border-radius: var(--r-pill);
+  background: var(--panel-border);
+  transition: background var(--t);
+  display: flex;
+  align-items: center;
+  padding: 2px;
+}
+.mcp-toggle-input:checked + .mcp-toggle-track {
+  background: var(--accent);
+}
+.mcp-toggle-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--ink);
+  transition: transform var(--t);
+}
+.mcp-toggle-input:checked + .mcp-toggle-track .mcp-toggle-thumb {
+  transform: translateX(14px);
+}
+
+/* ── Add server form ──────────────────────────────────────── */
+.mcp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-xs);
+  background: rgba(5, 10, 20, 0.4);
+}
+.mcp-form-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}

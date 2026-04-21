@@ -333,3 +333,41 @@ export function respondToApproval(
   });
 }
 
+/* ── MCP server management ────────────────────────────────── */
+
+export interface McpServer {
+  id: string;
+  name: string;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  enabled: boolean;
+  running?: boolean;
+  tool_count?: number;
+}
+
+export function listMcpServers(): Promise<McpServer[]> {
+  return req<McpServer[]>('/mcp/servers');
+}
+
+export function addMcpServer(server: McpServer): Promise<{ ok: true; warning?: string }> {
+  return req<{ ok: true; warning?: string }>('/mcp/servers', {
+    method: 'POST',
+    body: JSON.stringify(server),
+  });
+}
+
+export function removeMcpServer(id: string): Promise<{ ok: true }> {
+  return req<{ ok: true }>(`/mcp/servers/${id}`, { method: 'DELETE' });
+}
+
+export function toggleMcpServer(id: string): Promise<{ ok: true; enabled: boolean; error?: string }> {
+  return req<{ ok: true; enabled: boolean; error?: string }>(`/mcp/servers/${id}/toggle`, {
+    method: 'POST',
+  });
+}
+
+export function listMcpTools(): Promise<Array<{ name: string; description?: string; _server_name: string }>> {
+  return req<Array<{ name: string; description?: string; _server_name: string }>>('/mcp/tools');
+}
+
