@@ -5,6 +5,7 @@ import ModelPicker from './ModelPicker';
 import MessageList from './MessageList';
 import InputBox from './InputBox';
 import ApprovalModal from './ApprovalModal';
+import ArtifactPreview from './ArtifactPreview';
 import SettingsPanel from '../Settings/SettingsPanel';
 import ConversationSidebar from './ConversationSidebar';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
@@ -20,6 +21,7 @@ import {
 } from '../../lib/db';
 import { conversationToMarkdown, sanitizeFilename } from '../../lib/exportMarkdown';
 import { useConversations } from '../../hooks/useConversations';
+import type { Artifact } from '../../lib/artifacts';
 import type {
   ApprovalRequest,
   AssistantEvent,
@@ -117,6 +119,7 @@ export default function ChatWindow({
     () => localStorage.getItem('ui.sidebar_collapsed') === 'true',
   );
   const [confirmDelete, setConfirmDelete] = useState<string[] | null>(null);
+  const [previewArtifact, setPreviewArtifact] = useState<Artifact | null>(null);
   const [dbReady, setDbReady] = useState(false);
 
   const approvalQueueRef = useRef<ApprovalRequest[]>([]);
@@ -548,8 +551,8 @@ export default function ChatWindow({
           onDismissUndo={convs.dismissUndo}
           onSearchSelect={handleSearchSelect}
         />
-        <main className="chat-center">
-          <MessageList messages={messages} lang={lang} />
+        <main className={`chat-center ${previewArtifact ? 'with-preview' : ''}`}>
+          <MessageList messages={messages} lang={lang} onPreviewArtifact={setPreviewArtifact} />
           <InputBox
             lang={lang}
             streaming={streaming}
@@ -557,6 +560,12 @@ export default function ChatWindow({
             onStop={handleStop}
           />
         </main>
+        {previewArtifact && (
+          <ArtifactPreview
+            artifact={previewArtifact}
+            onClose={() => setPreviewArtifact(null)}
+          />
+        )}
       </div>
 
       <SettingsPanel

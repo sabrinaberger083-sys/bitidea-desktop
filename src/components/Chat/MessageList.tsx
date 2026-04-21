@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import MessageView from './Message';
+import type { Artifact } from '../../lib/artifacts';
 import type { Lang, Message } from '../../types';
 import './MessageList.css';
 
@@ -21,9 +22,10 @@ const COPY = {
 interface Props {
   messages: Message[];
   lang: Lang;
+  onPreviewArtifact?: (artifact: Artifact) => void;
 }
 
-export default function MessageList({ messages, lang }: Props) {
+export default function MessageList({ messages, lang, onPreviewArtifact }: Props) {
   const L = COPY[lang];
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const lastContentLen = useRef(0);
@@ -62,7 +64,7 @@ export default function MessageList({ messages, lang }: Props) {
     <div className="ml-scroller" ref={scrollerRef}>
       <div className="ml-inner">
         {messages.map((m) => (
-          <MessageView key={m.id} message={m} />
+          <MessageView key={m.id} message={m} onPreviewArtifact={onPreviewArtifact} />
         ))}
       </div>
     </div>

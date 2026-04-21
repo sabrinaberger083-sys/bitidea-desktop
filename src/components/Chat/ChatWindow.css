@@ -34,4 +34,12 @@
   min-height: 0;
   min-width: 0;
   background: transparent;
+  flex: 1;
+  transition: flex var(--t-slow);
+}
+
+/* When artifact preview is open, chat center shrinks to ~50% */
+.chat-center.with-preview {
+  flex: 1 1 50%;
+  max-width: 50%;
 }
