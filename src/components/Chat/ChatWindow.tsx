@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Logo from '../common/Logo';
 import Button from '../common/Button';
+import ModelPicker from './ModelPicker';
 import MessageList from './MessageList';
 import InputBox from './InputBox';
 import ApprovalModal from './ApprovalModal';
 import SettingsPanel from '../Settings/SettingsPanel';
 import ConversationSidebar from './ConversationSidebar';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
-import { respondToApproval, streamChat } from '../../lib/sidecar';
+import { respondToApproval, saveConfig, streamChat } from '../../lib/sidecar';
 import {
   deriveTitle,
   getMessages,
@@ -481,6 +482,16 @@ export default function ChatWindow({
     }
   }
 
+  async function handleModelChange(model: string) {
+    if (!config) return;
+    try {
+      await saveConfig({ provider: config.provider, model });
+      onConfigChanged({ ...config, model });
+    } catch (e) {
+      console.error('model change failed', e);
+    }
+  }
+
   function handleSearchSelect(hit: SearchHit) {
     handleSelectConversation(hit.conversation_id);
   }
@@ -502,6 +513,11 @@ export default function ChatWindow({
           <Logo size="sm" />
         </div>
         <div className="row" style={{ gap: 10 }}>
+          <ModelPicker
+            provider={config?.provider ?? 'openai'}
+            model={config?.model ?? ''}
+            onModelChange={handleModelChange}
+          />
           <Button
             size="sm"
             variant="secondary"

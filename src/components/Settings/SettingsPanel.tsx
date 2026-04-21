@@ -3,6 +3,7 @@ import Button from '../common/Button';
 import LangSwitch from '../common/LangSwitch';
 import type { Config, Lang, Provider } from '../../types';
 import { saveConfig } from '../../lib/sidecar';
+import { getPresetsForProvider } from '../../lib/modelPresets';
 import { SETTINGS_COPY } from './copy';
 import './SettingsPanel.css';
 
@@ -129,12 +130,39 @@ export default function SettingsPanel({
 
             <div className="field">
               <label className="label">{L.model}</label>
-              <input
-                className="input mono"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                spellCheck={false}
-              />
+              {getPresetsForProvider(provider).length > 0 ? (
+                <>
+                  <select
+                    className="select mono"
+                    value={getPresetsForProvider(provider).some((p) => p.id === model) ? model : '__custom__'}
+                    onChange={(e) => {
+                      if (e.target.value !== '__custom__') setModel(e.target.value);
+                    }}
+                  >
+                    {getPresetsForProvider(provider).map((p) => (
+                      <option key={p.id} value={p.id}>{p.label}</option>
+                    ))}
+                    <option value="__custom__">{L.custom_model}</option>
+                  </select>
+                  {!getPresetsForProvider(provider).some((p) => p.id === model) && (
+                    <input
+                      className="input mono"
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      placeholder={L.custom_model}
+                      spellCheck={false}
+                      style={{ marginTop: 6 }}
+                    />
+                  )}
+                </>
+              ) : (
+                <input
+                  className="input mono"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  spellCheck={false}
+                />
+              )}
             </div>
 
             {provider === 'custom' && (

@@ -21,6 +21,7 @@ export const SETTINGS_COPY: Record<Lang, Record<string, string>> = {
     language: 'LANGUAGE',
     no_key: 'No key configured',
     has_key: '•••••••• (stored)',
+    custom_model: 'Custom model ID',
   },
   zh: {
     title: '设置',
@@ -42,5 +43,6 @@ export const SETTINGS_COPY: Record<Lang, Record<string, string>> = {
     language: '语言',
     no_key: '尚未配置',
     has_key: '•••••••• （已保存）',
+    custom_model: '自定义模型',
   },
 };

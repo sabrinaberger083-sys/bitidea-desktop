@@ -1,0 +1,172 @@
+/* ══════════════════════════════════════════════════════════
+   ModelPicker · Quick model switcher in chat topbar
+   ══════════════════════════════════════════════════════════ */
+
+.model-picker {
+  position: relative;
+}
+
+/* ── Trigger chip ─────────────────────────────────────── */
+.model-picker-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-dim);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: border-color var(--t), color var(--t), background var(--t);
+  white-space: nowrap;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+  line-height: 1.4;
+}
+
+.model-picker-chip:hover {
+  border-color: var(--panel-border-strong);
+  color: var(--ink);
+}
+
+.model-picker-chip.open {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.model-picker-chevron {
+  font-size: 8px;
+  opacity: 0.5;
+  transition: transform var(--t-fast);
+}
+
+.model-picker-chip.open .model-picker-chevron {
+  transform: rotate(180deg);
+}
+
+/* ── Dropdown ─────────────────────────────────────────── */
+.model-picker-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 240px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--panel-solid);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-lg);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  animation: modelPickerIn 0.12s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes modelPickerIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Preset items ─────────────────────────────────────── */
+.model-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-dim);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+  border: none;
+  background: none;
+  text-align: left;
+  width: 100%;
+  white-space: nowrap;
+}
+
+.model-picker-item:hover {
+  background: rgba(74, 158, 255, 0.08);
+  color: var(--ink);
+}
+
+.model-picker-item.active {
+  color: var(--accent);
+}
+
+.model-picker-item-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.model-picker-item-id {
+  font-size: 10px;
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.model-picker-check {
+  width: 14px;
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--accent);
+}
+
+/* ── Custom input ─────────────────────────────────────── */
+.model-picker-custom {
+  border-top: 1px solid var(--panel-border);
+  padding: 6px 8px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.model-picker-custom input {
+  flex: 1;
+  background: var(--bg-2);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-sm);
+  padding: 5px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink);
+  outline: none;
+  transition: border-color var(--t-fast);
+}
+
+.model-picker-custom input::placeholder {
+  color: var(--ink-faint);
+}
+
+.model-picker-custom input:focus {
+  border-color: var(--accent);
+}
+
+.model-picker-custom button {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: var(--r-sm);
+  padding: 4px 8px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--t-fast);
+  white-space: nowrap;
+}
+
+.model-picker-custom button:hover {
+  opacity: 0.85;
+}
+
+.model-picker-custom button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
