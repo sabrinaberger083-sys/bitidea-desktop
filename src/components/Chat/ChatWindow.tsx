@@ -21,6 +21,7 @@ import {
 } from '../../lib/db';
 import { conversationToMarkdown, sanitizeFilename } from '../../lib/exportMarkdown';
 import { useConversations } from '../../hooks/useConversations';
+import { useStreamManager } from '../../hooks/useStreamManager';
 import type { Artifact } from '../../lib/artifacts';
 import { getProject } from '../../lib/db';
 import type {
@@ -119,7 +120,6 @@ export default function ChatWindow({
 
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [streaming, setStreaming] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [approval, setApproval] = useState<ApprovalRequest | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
@@ -129,8 +129,26 @@ export default function ChatWindow({
   const [previewArtifact, setPreviewArtifact] = useState<Artifact | null>(null);
   const [dbReady, setDbReady] = useState(false);
 
+  const streams = useStreamManager();
+
+  // Derived streaming state for the current conversation
+  const streaming = conversationId ? streams.isStreaming(conversationId) : false;
+
+  // Track current conversationId in a ref so SSE callbacks can check
+  // whether their target conversation is still the active one.
+  const conversationIdRef = useRef<string | null>(null);
+  useEffect(() => { conversationIdRef.current = conversationId; }, [conversationId]);
+
+  // Messages cache: all SSE callbacks write here; React state is only
+  // updated when the callback's target conversation is the active one.
+  const messagesCacheRef = useRef<Map<string, Message[]>>(new Map());
+  useEffect(() => {
+    if (conversationId) {
+      messagesCacheRef.current.set(conversationId, messages);
+    }
+  }, [messages, conversationId]);
+
   const approvalQueueRef = useRef<ApprovalRequest[]>([]);
-  const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -175,15 +193,20 @@ export default function ChatWindow({
   }, []);
 
   const loadConversation = useCallback(async (id: string) => {
-    if (streaming) return;
     try {
-      const stored = await getMessages(id);
-      setMessages(stored.map(storedToMessage));
+      // If this conversation is streaming in the background, restore from cache
+      const cached = messagesCacheRef.current.get(id);
+      if (cached && streams.isStreaming(id)) {
+        setMessages(cached);
+      } else {
+        const stored = await getMessages(id);
+        setMessages(stored.map(storedToMessage));
+      }
       setConversationId(id);
     } catch (e) {
       console.error('failed to load conversation', e);
     }
-  }, [streaming]);
+  }, [streams]);
 
   const showNextApproval = useCallback(() => {
     const next = approvalQueueRef.current.shift() || null;
@@ -251,8 +274,23 @@ export default function ChatWindow({
     [dbReady, convs],
   );
 
+  // Helper: update messages in the cache AND in React state (if the
+  // target conversation is still the active one).
+  function updateMessagesFor(
+    targetConvId: string,
+    fn: (prev: Message[]) => Message[],
+  ) {
+    const cached = messagesCacheRef.current.get(targetConvId) ?? [];
+    const updated = fn(cached);
+    messagesCacheRef.current.set(targetConvId, updated);
+    if (conversationIdRef.current === targetConvId) {
+      setMessages(updated);
+    }
+  }
+
   async function handleSend(text: string) {
     const trimmed = text.trim();
+    // Only block if the CURRENT conversation is already streaming
     if (!trimmed || streaming) return;
 
     let convId = conversationId;
@@ -282,7 +320,6 @@ export default function ChatWindow({
       events: [],
     };
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
-    setStreaming(true);
 
     if (dbReady) {
       try {
@@ -307,9 +344,9 @@ export default function ChatWindow({
 
     const capturedConvId = convId;
 
-    abortRef.current = streamChat(history, {
+    const controller = streamChat(history, {
       onToken: (txt) => {
-        setMessages((prev) => {
+        updateMessagesFor(capturedConvId, (prev) => {
           const updated = updateAssistant(prev, assistantId, (m) => ({
             ...m,
             content: m.content + txt,
@@ -321,7 +358,7 @@ export default function ChatWindow({
         });
       },
       onThinking: (txt) => {
-        setMessages((prev) =>
+        updateMessagesFor(capturedConvId, (prev) =>
           updateAssistant(prev, assistantId, (m) => ({
             ...m,
             events: appendThinkingEvent(m.events || [], txt),
@@ -329,7 +366,7 @@ export default function ChatWindow({
         );
       },
       onToolStart: (t) => {
-        setMessages((prev) =>
+        updateMessagesFor(capturedConvId, (prev) =>
           updateAssistant(prev, assistantId, (m) => ({
             ...m,
             events: [
@@ -349,7 +386,7 @@ export default function ChatWindow({
         );
       },
       onToolOutput: (id, chunk) => {
-        setMessages((prev) =>
+        updateMessagesFor(capturedConvId, (prev) =>
           updateAssistant(prev, assistantId, (m) => ({
             ...m,
             events: upsertTool(m.events || [], id, (t) => ({
@@ -360,7 +397,7 @@ export default function ChatWindow({
         );
       },
       onToolResult: (id, result) => {
-        setMessages((prev) =>
+        updateMessagesFor(capturedConvId, (prev) =>
           updateAssistant(prev, assistantId, (m) => ({
             ...m,
             events: upsertTool(m.events || [], id, (t) => ({
@@ -380,17 +417,17 @@ export default function ChatWindow({
         });
       },
       onStep: (step) => {
-        setMessages((prev) =>
+        updateMessagesFor(capturedConvId, (prev) =>
           updateAssistant(prev, assistantId, (m) => ({ ...m, step })),
         );
       },
       onStatus: (txt) => {
-        setMessages((prev) =>
+        updateMessagesFor(capturedConvId, (prev) =>
           updateAssistant(prev, assistantId, (m) => ({ ...m, status: txt })),
         );
       },
       onDone: () => {
-        setMessages((prev) => {
+        updateMessagesFor(capturedConvId, (prev) => {
           const updated = updateAssistant(prev, assistantId, (m) => ({
             ...m,
             streaming: false,
@@ -400,11 +437,10 @@ export default function ChatWindow({
           if (msg) flushPersist(msg, capturedConvId);
           return updated;
         });
-        setStreaming(false);
-        abortRef.current = null;
+        streams.endStream(capturedConvId);
       },
       onError: (msg) => {
-        setMessages((prev) => {
+        updateMessagesFor(capturedConvId, (prev) => {
           const errorText = `_connection error:_ \`${msg.replace(/`/g, "'")}\``;
           const updated = updateAssistant(prev, assistantId, (m) => {
             const events = (m.events || []).concat({
@@ -423,16 +459,17 @@ export default function ChatWindow({
           if (finalMsg) flushPersist(finalMsg, capturedConvId);
           return updated;
         });
-        setStreaming(false);
-        abortRef.current = null;
+        streams.endStream(capturedConvId);
       },
     }, currentProjectPath ? { projectPath: currentProjectPath } : undefined);
+
+    streams.startStream(convId, controller);
   }
 
   function handleStop() {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setStreaming(false);
+    if (conversationId) {
+      streams.stopStream(conversationId);
+    }
     setMessages((prev) =>
       prev.map((m) =>
         m.streaming ? { ...m, streaming: false, status: undefined } : m,
@@ -443,6 +480,9 @@ export default function ChatWindow({
   }
 
   function handleProjectChange(projectId: string | null, projectPath?: string) {
+    // Stop all active streams when switching projects
+    streams.stopAll();
+    messagesCacheRef.current.clear();
     setCurrentProjectId(projectId);
     setCurrentProjectPath(projectPath ?? null);
     if (projectId) {
@@ -456,18 +496,25 @@ export default function ChatWindow({
   }
 
   function handleNewChat() {
-    if (streaming) handleStop();
+    // Don't stop background streams — just switch to a blank conversation.
+    // The cache already syncs via the messages/conversationId effect.
     setMessages([]);
     setConversationId(null);
   }
 
   async function handleSelectConversation(id: string) {
     if (id === conversationId) return;
-    if (streaming) handleStop();
+    // Don't stop the current stream — it continues in the background.
+    // The cache is synced automatically via the messages/conversationId effect.
     await loadConversation(id);
   }
 
   async function handleDeleteConversation(id: string, title: string) {
+    // Stop any active stream for the deleted conversation
+    if (streams.isStreaming(id)) {
+      streams.stopStream(id);
+    }
+    messagesCacheRef.current.delete(id);
     await convs.remove(id, title);
     if (id === conversationId) {
       const nextId = await getMostRecentConversationId();
@@ -486,6 +533,11 @@ export default function ChatWindow({
 
   async function confirmDeleteMany() {
     if (!confirmDelete) return;
+    // Stop any active streams for deleted conversations
+    for (const id of confirmDelete) {
+      if (streams.isStreaming(id)) streams.stopStream(id);
+      messagesCacheRef.current.delete(id);
+    }
     await convs.removeMany(confirmDelete);
     if (confirmDelete.includes(conversationId ?? '')) {
       const nextId = await getMostRecentConversationId();
@@ -541,7 +593,7 @@ export default function ChatWindow({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [toggleSidebar, streaming]);
+  }, [toggleSidebar]);
 
   return (
     <div className="chat-root">
@@ -573,6 +625,7 @@ export default function ChatWindow({
           collapsed={sidebarCollapsed}
           undo={convs.undo}
           currentProjectId={currentProjectId}
+          streamingIds={streams.streamingIds}
           onProjectChange={handleProjectChange}
           onToggleCollapse={toggleSidebar}
           onSelect={handleSelectConversation}

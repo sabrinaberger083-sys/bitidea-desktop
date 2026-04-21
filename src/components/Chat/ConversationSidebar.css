@@ -169,6 +169,25 @@
   outline: none;
 }
 
+/* ── Streaming indicator ─────────────────────────────────── */
+
+.conv-streaming-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: conv-pulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+@keyframes conv-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
 /* ── Footer ──────────────────────────────────────────────── */
 
 .sidebar-foot {

@@ -7,6 +7,7 @@ interface Props {
   lang: Lang;
   batchMode: boolean;
   selected: boolean;
+  isStreaming?: boolean;
   onSelect: (id: string) => void;
   onToggleBatch: (id: string) => void;
   onRename: (id: string, title: string) => void;
@@ -22,6 +23,7 @@ export default function ConversationItem({
   lang,
   batchMode,
   selected,
+  isStreaming,
   onSelect,
   onToggleBatch,
   onRename,
@@ -89,7 +91,10 @@ export default function ConversationItem({
           />
         ) : (
           <>
-            <div className="conv-title">{conv.title}</div>
+            <div className="conv-title">
+              {conv.title}
+              {isStreaming && <span className="conv-streaming-dot" />}
+            </div>
             <div className="conv-preview">{conv.preview}</div>
           </>
         )}

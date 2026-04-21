@@ -17,6 +17,7 @@ interface Props {
   collapsed: boolean;
   undo: UndoState | null;
   currentProjectId: string | null;
+  streamingIds?: Set<string>;
   onProjectChange: (projectId: string | null, projectPath?: string) => void;
   onToggleCollapse: () => void;
   onSelect: (id: string) => void;
@@ -84,6 +85,7 @@ export default function ConversationSidebar({
   collapsed,
   undo,
   currentProjectId,
+  streamingIds,
   onProjectChange,
   onToggleCollapse,
   onSelect,
@@ -175,6 +177,7 @@ export default function ConversationSidebar({
                   lang={lang}
                   batchMode={batchMode}
                   selected={batchSelected.has(c.id)}
+                  isStreaming={streamingIds?.has(c.id) ?? false}
                   onSelect={onSelect}
                   onToggleBatch={toggleBatch}
                   onRename={onRename}
