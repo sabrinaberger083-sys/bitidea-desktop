@@ -1,0 +1,143 @@
+/* ── Folder section ──────────────────────────────────────── */
+
+.folder-section {
+  border-bottom: 1px solid var(--panel-border);
+  flex-shrink: 0;
+}
+
+/* ── Header row ──────────────────────────────────────────── */
+
+.folder-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background var(--t-fast);
+}
+
+.folder-header:hover {
+  background: rgba(74, 158, 255, 0.04);
+}
+
+.folder-header-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  user-select: none;
+}
+
+.folder-create-btn {
+  background: transparent;
+  border: none;
+  color: var(--ink-dim);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  border-radius: var(--r-xs);
+  transition: color var(--t-fast);
+  flex-shrink: 0;
+}
+
+.folder-create-btn:hover {
+  color: var(--accent-2);
+}
+
+/* ── Folder list ─────────────────────────────────────────── */
+
+.folder-list {
+  padding: 4px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: fadeIn 0.12s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Folder item ─────────────────────────────────────────── */
+
+.folder-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background var(--t-fast);
+  font-size: 12px;
+  color: var(--ink);
+  user-select: none;
+  border-left: 2px solid transparent;
+}
+
+.folder-item:hover {
+  background: rgba(74, 158, 255, 0.06);
+}
+
+.folder-item-active {
+  background: rgba(74, 158, 255, 0.1);
+  border-left-color: var(--accent);
+}
+
+.folder-item-creating {
+  cursor: default;
+}
+
+.folder-item-creating:hover {
+  background: transparent;
+}
+
+/* ── Folder item parts ───────────────────────────────────── */
+
+.folder-item-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.folder-item-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folder-item-count {
+  font-size: 10px;
+  color: var(--ink-faint);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ── Rename / create input ───────────────────────────────── */
+
+.folder-rename-input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-xs);
+  color: var(--ink);
+  font-size: 12px;
+  padding: 2px 6px;
+  outline: none;
+}
+
+.folder-rename-input::placeholder {
+  color: var(--ink-faint);
+}
+
+/* ── Context menu ────────────────────────────────────────── */
+
+/* Reuses .conv-menu from ConversationSidebar.css */
+.folder-context-menu {
+  min-width: 140px;
+}
