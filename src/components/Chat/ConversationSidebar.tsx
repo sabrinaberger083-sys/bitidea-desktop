@@ -160,12 +160,10 @@ export default function ConversationSidebar({
         onProjectChange={onProjectChange}
       />
 
-      {currentProjectPath && (
-        <KnowledgePanel
-          lang={lang}
-          projectId={currentProjectPath}
-        />
-      )}
+      <KnowledgePanel
+        lang={lang}
+        projectId={currentProjectPath}
+      />
 
       <SearchBar
         lang={lang}

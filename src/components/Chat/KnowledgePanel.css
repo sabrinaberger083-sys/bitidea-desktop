@@ -48,6 +48,19 @@
 .kb-toggle-arrow-open {
   transform: rotate(180deg);
 }
+.kb-toggle-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.kb-toggle-disabled:hover {
+  color: var(--ink-dim);
+  background: transparent;
+}
+.kb-toggle-hint {
+  font-size: 10px;
+  color: var(--ink-faint);
+  font-style: italic;
+}
 
 /* ── Expanded panel ─────────────────────────────────────── */
 

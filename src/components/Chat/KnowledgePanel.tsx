@@ -17,6 +17,7 @@ const COPY = {
     importing: 'Importing...',
     empty: 'No documents imported yet',
     chunks: 'chunks',
+    needProject: 'Select a project first',
   },
   zh: {
     title: '知识库',
@@ -24,6 +25,7 @@ const COPY = {
     importing: '导入中...',
     empty: '还没有导入文档',
     chunks: '个片段',
+    needProject: '请先选择项目',
   },
 };
 
@@ -45,8 +47,8 @@ async function deriveKbId(path: string): Promise<string> {
 
 interface Props {
   lang: Lang;
-  /** The absolute project directory path (used to derive KB id). */
-  projectId: string;
+  /** The absolute project directory path (used to derive KB id). Null when no project selected. */
+  projectId: string | null;
 }
 
 export default function KnowledgePanel({ lang, projectId: projectPath }: Props) {
@@ -58,6 +60,7 @@ export default function KnowledgePanel({ lang, projectId: projectPath }: Props) 
 
   // Compute the hash-based KB id whenever path changes
   useEffect(() => {
+    if (!projectPath) { setKbId(null); setDocuments([]); return; }
     let cancelled = false;
     deriveKbId(projectPath).then((id) => {
       if (!cancelled) setKbId(id);
@@ -131,23 +134,32 @@ export default function KnowledgePanel({ lang, projectId: projectPath }: Props) 
     return '📃';
   }
 
+  const disabled = !projectPath;
+
   return (
     <div className="kb-section">
       <button
         type="button"
-        className="kb-toggle"
-        onClick={() => setExpanded(!expanded)}
+        className={`kb-toggle ${disabled ? 'kb-toggle-disabled' : ''}`}
+        onClick={() => !disabled && setExpanded(!expanded)}
+        disabled={disabled}
+        title={disabled ? L.needProject : undefined}
       >
         <span className="kb-toggle-icon">{'📚'}</span>
         <span className="kb-toggle-label">{L.title}</span>
-        {documents.length > 0 && (
+        {disabled && (
+          <span className="kb-toggle-hint">{L.needProject}</span>
+        )}
+        {!disabled && documents.length > 0 && (
           <span className="kb-toggle-count">{documents.length}</span>
         )}
-        <span
-          className={`kb-toggle-arrow ${expanded ? 'kb-toggle-arrow-open' : ''}`}
-        >
-          {'▼'}
-        </span>
+        {!disabled && (
+          <span
+            className={`kb-toggle-arrow ${expanded ? 'kb-toggle-arrow-open' : ''}`}
+          >
+            {'▼'}
+          </span>
+        )}
       </button>
 
       {expanded && (
