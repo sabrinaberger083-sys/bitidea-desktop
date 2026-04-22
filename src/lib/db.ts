@@ -1,5 +1,6 @@
 import Database from '@tauri-apps/plugin-sql';
 import type {
+  Attachment,
   AssistantEvent,
   Conversation,
   ConversationWithPreview,
@@ -151,10 +152,11 @@ export async function getMessages(conversationId: string): Promise<StoredMessage
       content: string;
       events_json: string | null;
       step_json: string | null;
+      attachments_json: string | null;
       created_at: number;
     }>
   >(
-    'SELECT id, conversation_id, role, content, events_json, step_json, created_at FROM messages WHERE conversation_id = $1 ORDER BY created_at',
+    'SELECT id, conversation_id, role, content, events_json, step_json, attachments_json, created_at FROM messages WHERE conversation_id = $1 ORDER BY created_at',
     [conversationId],
   );
   return rows.map((r) => ({
@@ -164,6 +166,7 @@ export async function getMessages(conversationId: string): Promise<StoredMessage
     content: r.content,
     events: r.events_json ? (JSON.parse(r.events_json) as AssistantEvent[]) : undefined,
     step: r.step_json ? (JSON.parse(r.step_json) as StepEvent) : undefined,
+    attachments: r.attachments_json ? (JSON.parse(r.attachments_json) as Attachment[]) : undefined,
     created_at: r.created_at,
   }));
 }
@@ -172,12 +175,13 @@ export async function upsertMessage(msg: StoredMessage): Promise<void> {
   const db = await openDb();
   const eventsJson = msg.events ? JSON.stringify(msg.events) : null;
   const stepJson = msg.step ? JSON.stringify(msg.step) : null;
+  const attachmentsJson = msg.attachments ? JSON.stringify(msg.attachments) : null;
 
   await db.execute(
-    `INSERT INTO messages (id, conversation_id, role, content, events_json, step_json, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     ON CONFLICT(id) DO UPDATE SET content = $4, events_json = $5, step_json = $6`,
-    [msg.id, msg.conversation_id, msg.role, msg.content, eventsJson, stepJson, msg.created_at],
+    `INSERT INTO messages (id, conversation_id, role, content, events_json, step_json, attachments_json, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     ON CONFLICT(id) DO UPDATE SET content = $4, events_json = $5, step_json = $6, attachments_json = $7`,
+    [msg.id, msg.conversation_id, msg.role, msg.content, eventsJson, stepJson, attachmentsJson, msg.created_at],
   );
 
   // Rewrite FTS entry.

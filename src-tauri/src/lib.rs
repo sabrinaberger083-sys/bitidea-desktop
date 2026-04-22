@@ -56,6 +56,14 @@ ALTER TABLE conversations ADD COLUMN project_id TEXT REFERENCES projects(id) ON 
 CREATE INDEX idx_conv_project ON conversations (project_id);
 "#,
         kind: MigrationKind::Up,
+    },
+    Migration {
+        version: 3,
+        description: "add attachments_json column to messages",
+        sql: r#"
+ALTER TABLE messages ADD COLUMN attachments_json TEXT;
+"#,
+        kind: MigrationKind::Up,
     }]
 }
 
