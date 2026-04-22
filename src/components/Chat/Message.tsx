@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import type { AssistantEvent, Message } from '../../types';
+import type { AssistantEvent, Attachment, Message } from '../../types';
 import type { Artifact } from '../../lib/artifacts';
 import { extractRenderableArtifacts, isRenderable } from '../../lib/artifacts';
 import ToolCard from './ToolCard';
@@ -193,6 +193,29 @@ function EventStream({
   );
 }
 
+function AttachmentStrip({ attachments }: { attachments: Attachment[] }) {
+  return (
+    <div className="msg-attachments">
+      {attachments.map((att) => (
+        <div key={att.id} className={att.type === 'image' ? 'msg-att-img' : 'msg-att-file'}>
+          {att.type === 'image' ? (
+            <img
+              src={`data:${att.mime};base64,${att.data}`}
+              alt={att.name}
+              className="msg-att-thumb"
+            />
+          ) : (
+            <div className="msg-att-chip">
+              <span className="msg-att-icon">{att.name.endsWith('.pdf') ? '📄' : '📝'}</span>
+              <span className="msg-att-name">{att.name}</span>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function MessageComponent({ message, onPreviewArtifact }: Props) {
   const isUser = message.role === 'user';
   const hasEvents = !isUser && !!message.events && message.events.length > 0;
@@ -213,7 +236,12 @@ function MessageComponent({ message, onPreviewArtifact }: Props) {
         )}
         <div className={`msg-bubble ${isUser ? 'bubble-user' : 'bubble-asst'}`}>
           {isUser ? (
-            <div className="msg-plain">{message.content}</div>
+            <>
+              {message.attachments && message.attachments.length > 0 && (
+                <AttachmentStrip attachments={message.attachments} />
+              )}
+              {message.content && <div className="msg-plain">{message.content}</div>}
+            </>
           ) : hasEvents ? (
             <EventStream
               events={message.events!}
@@ -242,6 +270,7 @@ export default memo(MessageComponent, (a, b) => {
     m1.events === m2.events &&
     m1.step === m2.step &&
     m1.status === m2.status &&
+    m1.attachments === m2.attachments &&
     a.onPreviewArtifact === b.onPreviewArtifact
   );
 });

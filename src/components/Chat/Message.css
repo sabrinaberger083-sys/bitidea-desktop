@@ -148,3 +148,38 @@
   border-color: rgba(0, 229, 255, 0.5);
   box-shadow: 0 0 12px rgba(0, 229, 255, 0.2);
 }
+
+/* ── Attachments in user messages ─────────────── */
+.msg-attachments {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.msg-att-thumb {
+  max-width: 200px;
+  max-height: 150px;
+  object-fit: cover;
+  border-radius: var(--r-md);
+  border: 1px solid var(--panel-border);
+}
+.msg-att-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(120, 180, 255, 0.06);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-md);
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+.msg-att-icon {
+  font-size: 16px;
+}
+.msg-att-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
