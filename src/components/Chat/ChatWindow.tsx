@@ -28,6 +28,7 @@ import {
 } from '../../lib/db';
 import { getBuiltinAssistants } from '../../lib/assistantPresets';
 import { conversationToMarkdown, sanitizeFilename } from '../../lib/exportMarkdown';
+import { conversationToPdf, conversationToDocx } from '../../lib/exportFormats';
 import { useConversations } from '../../hooks/useConversations';
 import { useStreamManager } from '../../hooks/useStreamManager';
 import type { Artifact } from '../../lib/artifacts';
@@ -626,27 +627,51 @@ export default function ChatWindow({
     setConfirmDelete(null);
   }
 
-  async function handleExport(id: string) {
+  async function handleExport(id: string, format: 'md' | 'pdf' | 'docx' = 'md') {
     try {
       const stored = await getMessages(id);
       const conv = convs.conversations.find((c) => c.id === id);
       const title = conv?.title ?? 'conversation';
-      const md = conversationToMarkdown(title, stored);
-      const path = await showSaveDialog({
-        defaultPath: `${sanitizeFilename(title)}.md`,
-        filters: [{ name: 'Markdown', extensions: ['md'] }],
-      });
-      if (path) {
-        await invoke('write_text_file', { path, content: md });
+      const safeName = sanitizeFilename(title);
+
+      if (format === 'md') {
+        const md = conversationToMarkdown(title, stored);
+        const path = await showSaveDialog({
+          defaultPath: `${safeName}.md`,
+          filters: [{ name: 'Markdown', extensions: ['md'] }],
+        });
+        if (path) await invoke('write_text_file', { path, content: md });
+      } else if (format === 'pdf') {
+        const blob = await conversationToPdf(title, stored);
+        const path = await showSaveDialog({
+          defaultPath: `${safeName}.pdf`,
+          filters: [{ name: 'PDF', extensions: ['pdf'] }],
+        });
+        if (path) {
+          const buffer = await blob.arrayBuffer();
+          const bytes = Array.from(new Uint8Array(buffer));
+          await invoke('write_binary_file', { path, data: bytes });
+        }
+      } else if (format === 'docx') {
+        const blob = await conversationToDocx(title, stored);
+        const path = await showSaveDialog({
+          defaultPath: `${safeName}.docx`,
+          filters: [{ name: 'Word', extensions: ['docx'] }],
+        });
+        if (path) {
+          const buffer = await blob.arrayBuffer();
+          const bytes = Array.from(new Uint8Array(buffer));
+          await invoke('write_binary_file', { path, data: bytes });
+        }
       }
     } catch (e) {
       console.error('export failed', e);
     }
   }
 
-  async function handleExportMany(ids: string[]) {
+  async function handleExportMany(ids: string[], format: 'md' | 'pdf' | 'docx' = 'md') {
     for (const id of ids) {
-      await handleExport(id);
+      await handleExport(id, format);
     }
   }
 

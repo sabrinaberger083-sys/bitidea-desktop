@@ -9,15 +9,15 @@ interface Props {
   folders?: Folder[];
   onRename: (id: string) => void;
   onPin: (id: string, pinned: boolean) => void;
-  onExport: (id: string) => void;
+  onExport: (id: string, format: 'md' | 'pdf' | 'docx') => void;
   onDelete: (id: string, title: string) => void;
   onMoveToFolder?: (convId: string, folderId: string | null) => void;
   onClose: () => void;
 }
 
 const COPY = {
-  en: { rename: 'Rename', pin: 'Pin', unpin: 'Unpin', export: 'Export as Markdown…', delete: 'Delete', moveTo: 'Move to folder', removeFromFolder: 'Remove from folder' },
-  zh: { rename: '重命名', pin: '固定', unpin: '取消固定', export: '导出为 Markdown…', delete: '删除', moveTo: '移到文件夹', removeFromFolder: '移出文件夹' },
+  en: { rename: 'Rename', pin: 'Pin', unpin: 'Unpin', exportAs: 'Export as…', exportMd: 'Markdown (.md)', exportPdf: 'PDF (.pdf)', exportDocx: 'Word (.docx)', delete: 'Delete', moveTo: 'Move to folder', removeFromFolder: 'Remove from folder' },
+  zh: { rename: '重命名', pin: '固定', unpin: '取消固定', exportAs: '导出…', exportMd: 'Markdown (.md)', exportPdf: 'PDF (.pdf)', exportDocx: 'Word (.docx)', delete: '删除', moveTo: '移到文件夹', removeFromFolder: '移出文件夹' },
 };
 
 export default function ConversationMenu({
@@ -26,6 +26,7 @@ export default function ConversationMenu({
   const L = COPY[lang];
   const ref = useRef<HTMLDivElement | null>(null);
   const [showFolderSub, setShowFolderSub] = useState(false);
+  const [showExportSub, setShowExportSub] = useState(false);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -47,7 +48,28 @@ export default function ConversationMenu({
       <button type="button" onClick={() => onPin(conv.id, !conv.pinned)}>
         {conv.pinned ? L.unpin : L.pin}
       </button>
-      <button type="button" onClick={() => onExport(conv.id)}>{L.export}</button>
+      <div
+        className="conv-menu-folder-wrap"
+        onMouseEnter={() => setShowExportSub(true)}
+        onMouseLeave={() => setShowExportSub(false)}
+      >
+        <button type="button" className="conv-menu-folder-trigger">
+          {L.exportAs} <span style={{ float: 'right' }}>→</span>
+        </button>
+        {showExportSub && (
+          <div className="conv-menu-sub">
+            <button type="button" onClick={() => onExport(conv.id, 'md')}>
+              {L.exportMd}
+            </button>
+            <button type="button" onClick={() => onExport(conv.id, 'pdf')}>
+              {L.exportPdf}
+            </button>
+            <button type="button" onClick={() => onExport(conv.id, 'docx')}>
+              {L.exportDocx}
+            </button>
+          </div>
+        )}
+      </div>
       {folders && folders.length > 0 && onMoveToFolder && (
         <div
           className="conv-menu-folder-wrap"

@@ -32,8 +32,8 @@ interface Props {
   onPin: (id: string, pinned: boolean) => Promise<boolean>;
   onDelete: (id: string, title: string) => void;
   onDeleteMany: (ids: string[]) => void;
-  onExport: (id: string) => void;
-  onExportMany: (ids: string[]) => void;
+  onExport: (id: string, format: 'md' | 'pdf' | 'docx') => void;
+  onExportMany: (ids: string[], format: 'md' | 'pdf' | 'docx') => void;
   onUndo: () => void;
   onDismissUndo: () => void;
   onSearchSelect: (hit: SearchHit) => void;
@@ -219,7 +219,7 @@ export default function ConversationSidebar({
                   onRename={onRename}
                   onPin={(id, pinned) => { onPin(id, pinned); }}
                   onDelete={onDelete}
-                  onExport={onExport}
+                  onExport={(id) => onExport(id, 'md')}
                   onContextMenu={handleContextMenu}
                 />
               ))}
@@ -241,7 +241,7 @@ export default function ConversationSidebar({
           lang={lang}
           count={batchSelected.size}
           onDelete={() => { onDeleteMany(Array.from(batchSelected)); exitBatch(); }}
-          onExport={() => { onExportMany(Array.from(batchSelected)); exitBatch(); }}
+          onExport={(format) => { onExportMany(Array.from(batchSelected), format); exitBatch(); }}
           onCancel={exitBatch}
         />
       )}
@@ -255,7 +255,7 @@ export default function ConversationSidebar({
           folders={folders}
           onRename={() => { setMenuTarget(null); }}
           onPin={(id, pinned) => { setMenuTarget(null); onPin(id, pinned); }}
-          onExport={(id) => { setMenuTarget(null); onExport(id); }}
+          onExport={(id, format) => { setMenuTarget(null); onExport(id, format); }}
           onDelete={(id, title) => { setMenuTarget(null); onDelete(id, title); }}
           onMoveToFolder={(convId, folderId) => { setMenuTarget(null); onMoveToFolder(convId, folderId); }}
           onClose={() => setMenuTarget(null)}

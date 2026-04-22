@@ -107,6 +107,11 @@ fn read_text_file(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn write_binary_file(path: String, data: Vec<u8>) -> Result<(), String> {
+    std::fs::write(&path, &data).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn read_binary_file(path: String) -> Result<String, String> {
     use base64::Engine as _;
     let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
@@ -132,7 +137,7 @@ pub fn run() {
             spawn(&state_for_setup);
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_sidecar_info, write_text_file, read_text_file, read_binary_file])
+        .invoke_handler(tauri::generate_handler![get_sidecar_info, write_text_file, write_binary_file, read_text_file, read_binary_file])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(move |_app, event| {
