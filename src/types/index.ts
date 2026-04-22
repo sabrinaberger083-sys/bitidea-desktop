@@ -92,6 +92,16 @@ export interface ApprovalRequest {
   received_at: number;
 }
 
+export interface Attachment {
+  id: string;
+  type: 'image' | 'file';
+  name: string;
+  mime: string;
+  /** Base-64 encoded file content. */
+  data: string;
+  size: number;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -107,6 +117,8 @@ export interface Message {
   step?: StepEvent;
   /** Latest ephemeral status line. Cleared when streaming ends. */
   status?: string;
+  /** Files attached by the user (images, documents, etc.). */
+  attachments?: Attachment[];
 }
 
 export interface TestResult {
@@ -148,6 +160,7 @@ export interface StoredMessage {
   content: string;
   events?: AssistantEvent[];
   step?: StepEvent;
+  attachments?: Attachment[];
   created_at: number;
 }
 
