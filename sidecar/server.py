@@ -98,6 +98,7 @@ class ChatMessage(BaseModel):
 class ChatIn(BaseModel):
     messages: list[ChatMessage]
     project_path: Optional[str] = None
+    system_prompt: Optional[str] = None
 
 
 class ApprovalIn(BaseModel):
@@ -376,6 +377,7 @@ async def chat(body: ChatIn, request: Request) -> StreamingResponse:
         base_url=base_url,
         messages=messages,
         project_path=body.project_path,
+        system_prompt=body.system_prompt,
     )
 
     async def gen() -> AsyncIterator[bytes]:

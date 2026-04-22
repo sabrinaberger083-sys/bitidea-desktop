@@ -186,7 +186,7 @@ function formatMessageForApi(
 export function streamChat(
   messages: (Pick<Message, 'role' | 'content'> & { attachments?: Attachment[] })[],
   handlers: StreamHandlers,
-  options?: { projectPath?: string },
+  options?: { projectPath?: string; systemPrompt?: string },
 ): AbortController {
   const controller = new AbortController();
   const { url } = getBase();
@@ -216,6 +216,7 @@ export function streamChat(
     try {
       const chatBody: Record<string, unknown> = { messages: messages.map(formatMessageForApi) };
       if (options?.projectPath) chatBody.project_path = options.projectPath;
+      if (options?.systemPrompt) chatBody.system_prompt = options.systemPrompt;
       res = await fetch(`${url}/chat`, {
         method: 'POST',
         headers: headers(),
