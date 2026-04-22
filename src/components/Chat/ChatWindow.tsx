@@ -294,13 +294,13 @@ export default function ChatWindow({
 
   async function handleSend(text: string, attachments?: Attachment[]) {
     const trimmed = text.trim();
-    // Only block if the CURRENT conversation is already streaming
-    if (!trimmed || streaming) return;
+    const hasContent = trimmed || (attachments && attachments.length > 0);
+    if (!hasContent || streaming) return;
 
     let convId = conversationId;
     if (!convId && dbReady) {
       convId = crypto.randomUUID();
-      const title = deriveTitle(trimmed);
+      const title = deriveTitle(trimmed || (attachments?.[0]?.name ?? ''));
       try {
         await convs.create(convId, title, currentProjectId);
         setConversationId(convId);
