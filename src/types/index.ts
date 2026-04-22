@@ -138,6 +138,25 @@ export interface Project {
   updated_at: number;
 }
 
+export interface Assistant {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  system_prompt: string;
+  builtin: boolean;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface Folder {
+  id: string;
+  name: string;
+  icon: string;
+  sort_order: number;
+  created_at: number;
+}
+
 export interface Conversation {
   id: string;
   title: string;
@@ -145,12 +164,15 @@ export interface Conversation {
   created_at: number;
   updated_at: number;
   project_id?: string | null;
+  folder_id?: string | null;
+  assistant_id?: string | null;
 }
 
 export interface ConversationWithPreview extends Conversation {
   preview: string;
   message_count: number;
   project_name?: string;
+  folder_name?: string;
 }
 
 export interface StoredMessage {

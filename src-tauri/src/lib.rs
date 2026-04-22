@@ -64,6 +64,35 @@ CREATE INDEX idx_conv_project ON conversations (project_id);
 ALTER TABLE messages ADD COLUMN attachments_json TEXT;
 "#,
         kind: MigrationKind::Up,
+    },
+    Migration {
+        version: 4,
+        description: "add assistants and folders tables",
+        sql: r#"
+CREATE TABLE assistants (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  icon        TEXT NOT NULL DEFAULT '🤖',
+  system_prompt TEXT NOT NULL,
+  builtin     INTEGER NOT NULL DEFAULT 0,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
+);
+
+CREATE TABLE folders (
+  id         TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  icon       TEXT NOT NULL DEFAULT '📁',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+
+ALTER TABLE conversations ADD COLUMN folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL;
+ALTER TABLE conversations ADD COLUMN assistant_id TEXT REFERENCES assistants(id) ON DELETE SET NULL;
+CREATE INDEX idx_conv_folder ON conversations (folder_id);
+"#,
+        kind: MigrationKind::Up,
     }]
 }
 

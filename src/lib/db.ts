@@ -1,9 +1,11 @@
 import Database from '@tauri-apps/plugin-sql';
 import type {
+  Assistant,
   Attachment,
   AssistantEvent,
   Conversation,
   ConversationWithPreview,
+  Folder,
   Project,
   SearchHit,
   StepEvent,
@@ -31,18 +33,24 @@ export async function listConversations(): Promise<ConversationWithPreview[]> {
       created_at: number;
       updated_at: number;
       project_id: string | null;
+      folder_id: string | null;
+      assistant_id: string | null;
       preview: string | null;
       message_count: number;
       project_name: string | null;
+      folder_name: string | null;
     }>
   >(
     `SELECT c.id, c.title, c.pinned, c.created_at, c.updated_at, c.project_id,
+       c.folder_id, c.assistant_id,
        (SELECT substr(m.content, 1, 80) FROM messages m
         WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS preview,
        (SELECT count(*) FROM messages m WHERE m.conversation_id = c.id) AS message_count,
-       p.name AS project_name
+       p.name AS project_name,
+       f.name AS folder_name
      FROM conversations c
      LEFT JOIN projects p ON c.project_id = p.id
+     LEFT JOIN folders f ON c.folder_id = f.id
      WHERE c.deleted_at IS NULL
      ORDER BY c.pinned DESC, c.updated_at DESC`,
   );
@@ -53,9 +61,12 @@ export async function listConversations(): Promise<ConversationWithPreview[]> {
     created_at: r.created_at,
     updated_at: r.updated_at,
     project_id: r.project_id,
+    folder_id: r.folder_id,
+    assistant_id: r.assistant_id,
     preview: r.preview ?? '',
     message_count: r.message_count,
     project_name: r.project_name ?? undefined,
+    folder_name: r.folder_name ?? undefined,
   }));
 }
 
@@ -69,22 +80,24 @@ export async function getConversation(id: string): Promise<Conversation | null> 
       created_at: number;
       updated_at: number;
       project_id: string | null;
+      folder_id: string | null;
+      assistant_id: string | null;
     }>
   >(
-    'SELECT id, title, pinned, created_at, updated_at, project_id FROM conversations WHERE id = $1 AND deleted_at IS NULL',
+    'SELECT id, title, pinned, created_at, updated_at, project_id, folder_id, assistant_id FROM conversations WHERE id = $1 AND deleted_at IS NULL',
     [id],
   );
   if (rows.length === 0) return null;
   const r = rows[0];
-  return { id: r.id, title: r.title, pinned: r.pinned === 1, created_at: r.created_at, updated_at: r.updated_at, project_id: r.project_id };
+  return { id: r.id, title: r.title, pinned: r.pinned === 1, created_at: r.created_at, updated_at: r.updated_at, project_id: r.project_id, folder_id: r.folder_id, assistant_id: r.assistant_id };
 }
 
-export async function createConversation(id: string, title: string, projectId?: string | null): Promise<void> {
+export async function createConversation(id: string, title: string, projectId?: string | null, assistantId?: string | null, folderId?: string | null): Promise<void> {
   const db = await openDb();
   const now = Date.now();
   await db.execute(
-    'INSERT INTO conversations (id, title, pinned, created_at, updated_at, project_id) VALUES ($1, $2, 0, $3, $4, $5)',
-    [id, title, now, now, projectId ?? null],
+    'INSERT INTO conversations (id, title, pinned, created_at, updated_at, project_id, assistant_id, folder_id) VALUES ($1, $2, 0, $3, $4, $5, $6, $7)',
+    [id, title, now, now, projectId ?? null, assistantId ?? null, folderId ?? null],
   );
 }
 
@@ -342,11 +355,14 @@ export async function listConversationsForProject(projectId: string): Promise<Co
       created_at: number;
       updated_at: number;
       project_id: string | null;
+      folder_id: string | null;
+      assistant_id: string | null;
       preview: string | null;
       message_count: number;
     }>
   >(
     `SELECT c.id, c.title, c.pinned, c.created_at, c.updated_at, c.project_id,
+            c.folder_id, c.assistant_id,
             COALESCE((SELECT SUBSTR(m.content, 1, 80) FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1), '') AS preview,
             (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) AS message_count
      FROM conversations c
@@ -361,9 +377,141 @@ export async function listConversationsForProject(projectId: string): Promise<Co
     created_at: r.created_at,
     updated_at: r.updated_at,
     project_id: r.project_id,
+    folder_id: r.folder_id,
+    assistant_id: r.assistant_id,
     preview: r.preview ?? '',
     message_count: r.message_count,
   }));
+}
+
+// ── Assistants ───────────────────────────────────────────
+
+export async function listAssistants(): Promise<Assistant[]> {
+  const db = await openDb();
+  const rows = await db.select<
+    Array<{
+      id: string;
+      name: string;
+      description: string;
+      icon: string;
+      system_prompt: string;
+      builtin: number;
+      created_at: number;
+      updated_at: number;
+    }>
+  >(
+    'SELECT id, name, description, icon, system_prompt, builtin, created_at, updated_at FROM assistants ORDER BY builtin DESC, name ASC',
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    icon: r.icon,
+    system_prompt: r.system_prompt,
+    builtin: r.builtin === 1,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  }));
+}
+
+export async function getAssistant(id: string): Promise<Assistant | null> {
+  const db = await openDb();
+  const rows = await db.select<
+    Array<{
+      id: string;
+      name: string;
+      description: string;
+      icon: string;
+      system_prompt: string;
+      builtin: number;
+      created_at: number;
+      updated_at: number;
+    }>
+  >(
+    'SELECT id, name, description, icon, system_prompt, builtin, created_at, updated_at FROM assistants WHERE id = $1',
+    [id],
+  );
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  return {
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    icon: r.icon,
+    system_prompt: r.system_prompt,
+    builtin: r.builtin === 1,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  };
+}
+
+export async function upsertAssistant(a: Assistant): Promise<void> {
+  const db = await openDb();
+  await db.execute(
+    `INSERT OR REPLACE INTO assistants (id, name, description, icon, system_prompt, builtin, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [a.id, a.name, a.description, a.icon, a.system_prompt, a.builtin ? 1 : 0, a.created_at, a.updated_at],
+  );
+}
+
+export async function deleteAssistant(id: string): Promise<void> {
+  const db = await openDb();
+  await db.execute('DELETE FROM assistants WHERE id = $1 AND builtin = 0', [id]);
+}
+
+export async function seedBuiltinAssistants(assistants: Assistant[]): Promise<void> {
+  const db = await openDb();
+  for (const a of assistants) {
+    await db.execute(
+      `INSERT OR IGNORE INTO assistants (id, name, description, icon, system_prompt, builtin, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [a.id, a.name, a.description, a.icon, a.system_prompt, a.builtin ? 1 : 0, a.created_at, a.updated_at],
+    );
+  }
+}
+
+// ── Folders ──────────────────────────────────────────────
+
+export async function listFolders(): Promise<Folder[]> {
+  const db = await openDb();
+  return db.select<Folder[]>(
+    'SELECT id, name, icon, sort_order, created_at FROM folders ORDER BY sort_order, name',
+  );
+}
+
+export async function createFolder(id: string, name: string, icon?: string): Promise<void> {
+  const db = await openDb();
+  await db.execute(
+    'INSERT INTO folders (id, name, icon, created_at) VALUES ($1, $2, $3, $4)',
+    [id, name, icon ?? '📁', Date.now()],
+  );
+}
+
+export async function renameFolder(id: string, name: string): Promise<void> {
+  const db = await openDb();
+  await db.execute('UPDATE folders SET name = $1 WHERE id = $2', [name, id]);
+}
+
+export async function deleteFolderAndUnlink(id: string): Promise<void> {
+  const db = await openDb();
+  await db.execute('UPDATE conversations SET folder_id = NULL WHERE folder_id = $1', [id]);
+  await db.execute('DELETE FROM folders WHERE id = $1', [id]);
+}
+
+export async function setConversationFolder(convId: string, folderId: string | null): Promise<void> {
+  const db = await openDb();
+  await db.execute(
+    'UPDATE conversations SET folder_id = $1, updated_at = $2 WHERE id = $3',
+    [folderId, Date.now(), convId],
+  );
+}
+
+export async function setConversationAssistant(convId: string, assistantId: string | null): Promise<void> {
+  const db = await openDb();
+  await db.execute(
+    'UPDATE conversations SET assistant_id = $1, updated_at = $2 WHERE id = $3',
+    [assistantId, Date.now(), convId],
+  );
 }
 
 // ── Title derivation ───────────────────────────────────────
