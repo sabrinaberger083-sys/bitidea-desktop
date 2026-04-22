@@ -36,7 +36,7 @@ import secrets
 import time
 import uuid
 from pathlib import Path
-from typing import AsyncIterator, Literal, Optional
+from typing import Any, AsyncIterator, Literal, Optional, Union
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -92,7 +92,7 @@ class ConfigOut(BaseModel):
 
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
-    content: str
+    content: Union[str, list[Any]]
 
 
 class ChatIn(BaseModel):
@@ -334,11 +334,19 @@ async def chat(body: ChatIn, request: Request) -> StreamingResponse:
         import hashlib as _hl
 
         project_id = _hl.sha256(body.project_path.encode()).hexdigest()[:16]
-        last_user_msg = ""
+        last_user_content = None
         for m in reversed(body.messages):
             if m.role == "user":
-                last_user_msg = m.content
+                last_user_content = m.content
                 break
+        # Extract plain text for KB search (content may be str or list)
+        if isinstance(last_user_content, list):
+            last_user_msg = " ".join(
+                part.get("text", "") for part in last_user_content
+                if isinstance(part, dict) and part.get("type") == "text"
+            )
+        else:
+            last_user_msg = last_user_content or ""
         if last_user_msg:
             try:
                 chunks = search_chunks(project_id, last_user_msg, limit=3)
@@ -356,7 +364,10 @@ async def chat(body: ChatIn, request: Request) -> StreamingResponse:
                     "</knowledge_base>\n\n"
                 )
                 # Prepend to the last user message
-                messages[-1]["content"] = rag_prefix + messages[-1]["content"]
+                if isinstance(messages[-1]["content"], list):
+                    messages[-1]["content"].insert(0, {"type": "text", "text": rag_prefix})
+                else:
+                    messages[-1]["content"] = rag_prefix + messages[-1]["content"]
 
     runner = AgentRunner(
         provider=provider,

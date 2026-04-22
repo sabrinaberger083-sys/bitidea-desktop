@@ -6,6 +6,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
   ApprovalRequest,
+  Attachment,
   Config,
   ConfigInput,
   Message,
@@ -143,12 +144,47 @@ export interface StreamHandlers {
   onError: (message: string) => void;
 }
 
+function formatMessageForApi(
+  msg: { role: string; content: string; attachments?: Attachment[] },
+): { role: string; content: string | Array<Record<string, unknown>> } {
+  const atts = msg.attachments;
+  if (!atts || atts.length === 0) {
+    return { role: msg.role, content: msg.content };
+  }
+
+  const images = atts.filter(a => a.type === 'image');
+  const docs = atts.filter(a => a.type === 'file');
+
+  let textContent = msg.content;
+  if (docs.length > 0) {
+    const docText = docs.map(d => `[File: ${d.name}]\n${d.data}`).join('\n\n---\n\n');
+    textContent = docText + (textContent ? '\n\n' + textContent : '');
+  }
+
+  if (images.length === 0) {
+    return { role: msg.role, content: textContent };
+  }
+
+  const contentArray: Array<Record<string, unknown>> = [];
+  if (textContent) {
+    contentArray.push({ type: 'text', text: textContent });
+  }
+  for (const img of images) {
+    contentArray.push({
+      type: 'image_url',
+      image_url: { url: `data:${img.mime};base64,${img.data}` },
+    });
+  }
+
+  return { role: msg.role, content: contentArray };
+}
+
 /**
  * Stream a chat completion. Returns an AbortController the caller can use
  * to cancel the stream (stop button). Handlers never throw.
  */
 export function streamChat(
-  messages: Pick<Message, 'role' | 'content'>[],
+  messages: (Pick<Message, 'role' | 'content'> & { attachments?: Attachment[] })[],
   handlers: StreamHandlers,
   options?: { projectPath?: string },
 ): AbortController {
@@ -178,7 +214,7 @@ export function streamChat(
   (async () => {
     let res: Response;
     try {
-      const chatBody: Record<string, unknown> = { messages };
+      const chatBody: Record<string, unknown> = { messages: messages.map(formatMessageForApi) };
       if (options?.projectPath) chatBody.project_path = options.projectPath;
       res = await fetch(`${url}/chat`, {
         method: 'POST',

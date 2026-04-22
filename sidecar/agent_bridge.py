@@ -357,7 +357,7 @@ class AgentRunner:
         model: str,
         api_key: str,
         base_url: Optional[str],
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         project_path: Optional[str] = None,
     ) -> None:
         self.provider = provider
@@ -619,11 +619,21 @@ class AgentRunner:
                 *history, last = self.messages
                 if last["role"] != "user":
                     raise ValueError("last message must be role=user")
+                # Extract plain text from the last user message (content
+                # may be a str or an OpenAI-style list of content parts).
+                user_content = last["content"]
+                if isinstance(user_content, list):
+                    user_text = " ".join(
+                        part.get("text", "") for part in user_content
+                        if isinstance(part, dict) and part.get("type") == "text"
+                    )
+                else:
+                    user_text = user_content
                 history_dicts: List[Dict[str, Any]] = [
                     {"role": m["role"], "content": m["content"]} for m in history
                 ]
                 agent.run_conversation(
-                    user_message=last["content"],
+                    user_message=user_text,
                     conversation_history=history_dicts or None,
                 )
             finally:

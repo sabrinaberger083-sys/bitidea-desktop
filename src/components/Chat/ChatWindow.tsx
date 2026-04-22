@@ -28,6 +28,7 @@ import { getProject } from '../../lib/db';
 import type {
   ApprovalRequest,
   AssistantEvent,
+  Attachment,
   Config,
   Lang,
   Message,
@@ -101,6 +102,7 @@ function storedToMessage(s: StoredMessage): Message {
     events: s.events,
     step: s.step,
     streaming: false,
+    attachments: s.attachments,
   };
 }
 
@@ -290,7 +292,7 @@ export default function ChatWindow({
     }
   }
 
-  async function handleSend(text: string) {
+  async function handleSend(text: string, attachments?: Attachment[]) {
     const trimmed = text.trim();
     // Only block if the CURRENT conversation is already streaming
     if (!trimmed || streaming) return;
@@ -312,6 +314,7 @@ export default function ChatWindow({
       id: crypto.randomUUID(),
       role: 'user',
       content: trimmed,
+      attachments,
     };
     const assistantId = crypto.randomUUID();
     const assistantMsg: Message = {
@@ -331,6 +334,7 @@ export default function ChatWindow({
           role: 'user',
           content: userMsg.content,
           created_at: Date.now(),
+          attachments: userMsg.attachments,
         };
         await upsertMessage(stored);
         await updateConversationTimestamp(convId);
@@ -342,6 +346,7 @@ export default function ChatWindow({
     const history = [...messages, userMsg].map((m) => ({
       role: m.role,
       content: m.content,
+      attachments: m.attachments,
     }));
 
     const capturedConvId = convId;
