@@ -10,6 +10,8 @@ import MarkdownEditor from './MarkdownEditor';
 import SettingsPanel from '../Settings/SettingsPanel';
 import ConversationSidebar from './ConversationSidebar';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
+import AssistantPicker from './AssistantPicker';
+import AssistantEditor from '../Settings/AssistantEditor';
 import { respondToApproval, saveConfig, streamChat } from '../../lib/sidecar';
 import {
   deriveTitle,
@@ -19,7 +21,12 @@ import {
   updateConversationTimestamp,
   upsertMessage,
   vacuumOldDeletions,
+  listAssistants,
+  upsertAssistant,
+  deleteAssistant,
+  seedBuiltinAssistants,
 } from '../../lib/db';
+import { getBuiltinAssistants } from '../../lib/assistantPresets';
 import { conversationToMarkdown, sanitizeFilename } from '../../lib/exportMarkdown';
 import { useConversations } from '../../hooks/useConversations';
 import { useStreamManager } from '../../hooks/useStreamManager';
@@ -27,6 +34,7 @@ import type { Artifact } from '../../lib/artifacts';
 import { getProject } from '../../lib/db';
 import type {
   ApprovalRequest,
+  Assistant,
   AssistantEvent,
   Attachment,
   Config,
@@ -119,6 +127,13 @@ export default function ChatWindow({
   );
   const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
 
+  const [assistants, setAssistants] = useState<Assistant[]>([]);
+  const [currentAssistantId, setCurrentAssistantId] = useState<string | null>(
+    () => localStorage.getItem('ui.current_assistant_id') || null,
+  );
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingAssistant, setEditingAssistant] = useState<Assistant | null>(null);
+
   const convs = useConversations(currentProjectId);
 
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -155,6 +170,15 @@ export default function ChatWindow({
   const approvalQueueRef = useRef<ApprovalRequest[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  async function refreshAssistants() {
+    try {
+      const list = await listAssistants();
+      setAssistants(list);
+    } catch (e) {
+      console.error('failed to load assistants', e);
+    }
+  }
+
   useEffect(() => {
     (async () => {
       try {
@@ -175,6 +199,15 @@ export default function ChatWindow({
             }
           } catch { /* ignore */ }
         }
+        // Seed built-in assistants
+        const builtins = getBuiltinAssistants(lang);
+        await seedBuiltinAssistants(builtins.map(b => ({
+          ...b,
+          created_at: Date.now(),
+          updated_at: Date.now(),
+        })));
+        await refreshAssistants();
+
         const id = await getMostRecentConversationId();
         if (id) {
           setConversationId(id);
@@ -187,6 +220,14 @@ export default function ChatWindow({
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (currentAssistantId) {
+      localStorage.setItem('ui.current_assistant_id', currentAssistantId);
+    } else {
+      localStorage.removeItem('ui.current_assistant_id');
+    }
+  }, [currentAssistantId]);
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((v) => {
@@ -302,7 +343,7 @@ export default function ChatWindow({
       convId = crypto.randomUUID();
       const title = deriveTitle(trimmed || (attachments?.[0]?.name ?? ''));
       try {
-        await convs.create(convId, title, currentProjectId);
+        await convs.create(convId, title, currentProjectId, currentAssistantId);
         setConversationId(convId);
       } catch (e) {
         console.error('failed to create conversation', e);
@@ -350,6 +391,13 @@ export default function ChatWindow({
     }));
 
     const capturedConvId = convId;
+
+    // Resolve system prompt from the current assistant
+    let systemPrompt: string | undefined;
+    if (currentAssistantId) {
+      const assistant = assistants.find(a => a.id === currentAssistantId);
+      if (assistant) systemPrompt = assistant.system_prompt;
+    }
 
     const controller = streamChat(history, {
       onToken: (txt) => {
@@ -468,7 +516,10 @@ export default function ChatWindow({
         });
         streams.endStream(capturedConvId);
       },
-    }, currentProjectPath ? { projectPath: currentProjectPath } : undefined);
+    }, {
+      ...(currentProjectPath ? { projectPath: currentProjectPath } : {}),
+      ...(systemPrompt ? { systemPrompt } : {}),
+    });
 
     streams.startStream(convId, controller);
   }
@@ -484,6 +535,27 @@ export default function ChatWindow({
     );
     approvalQueueRef.current = [];
     setApproval(null);
+  }
+
+  async function handleAssistantSave(data: { id: string; name: string; description: string; icon: string; system_prompt: string }) {
+    const now = Date.now();
+    await upsertAssistant({
+      ...data,
+      builtin: false,
+      created_at: editingAssistant?.created_at ?? now,
+      updated_at: now,
+    });
+    await refreshAssistants();
+    setEditorOpen(false);
+    setEditingAssistant(null);
+  }
+
+  async function handleAssistantDelete(id: string) {
+    await deleteAssistant(id);
+    if (currentAssistantId === id) setCurrentAssistantId(null);
+    await refreshAssistants();
+    setEditorOpen(false);
+    setEditingAssistant(null);
   }
 
   function handleProjectChange(projectId: string | null, projectPath?: string) {
@@ -622,6 +694,13 @@ export default function ChatWindow({
       <header className="chat-topbar">
         <div className="row" style={{ gap: 14 }}>
           <Logo size="sm" />
+          <AssistantPicker
+            lang={lang}
+            assistants={assistants}
+            currentId={currentAssistantId}
+            onChange={setCurrentAssistantId}
+            onCreateNew={() => { setEditingAssistant(null); setEditorOpen(true); }}
+          />
         </div>
         <div className="row" style={{ gap: 10 }}>
           <ModelPicker
@@ -656,6 +735,9 @@ export default function ChatWindow({
           currentProjectId={currentProjectId}
           currentProjectPath={currentProjectPath}
           streamingIds={streams.streamingIds}
+          folders={convs.folders}
+          activeFolderId={convs.activeFolderId}
+          conversationCounts={convs.conversationCounts}
           onProjectChange={handleProjectChange}
           onToggleCollapse={toggleSidebar}
           onSelect={handleSelectConversation}
@@ -669,6 +751,11 @@ export default function ChatWindow({
           onUndo={convs.undoDelete}
           onDismissUndo={convs.dismissUndo}
           onSearchSelect={handleSearchSelect}
+          onFolderSelect={convs.setActiveFolderId}
+          onFolderCreate={convs.addFolder}
+          onFolderRename={convs.editFolderName}
+          onFolderDelete={convs.removeFolder}
+          onMoveToFolder={convs.moveToFolder}
         />
         <main className={`chat-center ${(previewArtifact || editorFilePath) ? 'with-preview' : ''}`}>
           <MessageList messages={messages} lang={lang} onPreviewArtifact={(a) => { setEditorFilePath(null); setPreviewArtifact(a); }} />
@@ -715,6 +802,15 @@ export default function ChatWindow({
         open={confirmDelete !== null}
         onConfirm={confirmDeleteMany}
         onCancel={() => setConfirmDelete(null)}
+      />
+
+      <AssistantEditor
+        lang={lang}
+        open={editorOpen}
+        assistant={editingAssistant}
+        onSave={handleAssistantSave}
+        onDelete={handleAssistantDelete}
+        onClose={() => { setEditorOpen(false); setEditingAssistant(null); }}
       />
     </div>
   );

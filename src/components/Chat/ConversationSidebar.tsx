@@ -2,12 +2,13 @@ import { useMemo, useState } from 'react';
 import Button from '../common/Button';
 import ConversationItem from './ConversationItem';
 import ConversationMenu from './ConversationMenu';
+import FolderList from './FolderList';
 import KnowledgePanel from './KnowledgePanel';
 import ProjectPicker from './ProjectPicker';
 import SearchBar from './SearchBar';
 import BatchFooter from './BatchFooter';
 import UndoToast from './UndoToast';
-import type { ConversationWithPreview, Lang, SearchHit } from '../../types';
+import type { ConversationWithPreview, Folder, Lang, SearchHit } from '../../types';
 import type { UndoState } from '../../hooks/useConversations';
 import './ConversationSidebar.css';
 
@@ -20,6 +21,9 @@ interface Props {
   currentProjectId: string | null;
   currentProjectPath: string | null;
   streamingIds?: Set<string>;
+  folders: Folder[];
+  activeFolderId: string | null;
+  conversationCounts: Map<string, number>;
   onProjectChange: (projectId: string | null, projectPath?: string) => void;
   onToggleCollapse: () => void;
   onSelect: (id: string) => void;
@@ -33,6 +37,11 @@ interface Props {
   onUndo: () => void;
   onDismissUndo: () => void;
   onSearchSelect: (hit: SearchHit) => void;
+  onFolderSelect: (id: string | null) => void;
+  onFolderCreate: (name: string) => void;
+  onFolderRename: (id: string, name: string) => void;
+  onFolderDelete: (id: string) => void;
+  onMoveToFolder: (convId: string, folderId: string | null) => void;
 }
 
 interface TimeBucket {
@@ -89,6 +98,9 @@ export default function ConversationSidebar({
   currentProjectId,
   currentProjectPath,
   streamingIds,
+  folders,
+  activeFolderId,
+  conversationCounts,
   onProjectChange,
   onToggleCollapse,
   onSelect,
@@ -102,6 +114,11 @@ export default function ConversationSidebar({
   onUndo,
   onDismissUndo,
   onSearchSelect,
+  onFolderSelect,
+  onFolderCreate,
+  onFolderRename,
+  onFolderDelete,
+  onMoveToFolder,
 }: Props) {
   const L = LABELS[lang];
   const [batchMode, setBatchMode] = useState(false);
@@ -165,6 +182,17 @@ export default function ConversationSidebar({
         projectId={currentProjectPath}
       />
 
+      <FolderList
+        lang={lang}
+        folders={folders}
+        activeFolderId={activeFolderId}
+        conversationCounts={conversationCounts}
+        onSelect={onFolderSelect}
+        onCreate={onFolderCreate}
+        onRename={onFolderRename}
+        onDelete={onFolderDelete}
+      />
+
       <SearchBar
         lang={lang}
         onResults={(hits) => setSearching(hits.length > 0)}
@@ -224,10 +252,12 @@ export default function ConversationSidebar({
           lang={lang}
           x={menuTarget.x}
           y={menuTarget.y}
+          folders={folders}
           onRename={() => { setMenuTarget(null); }}
           onPin={(id, pinned) => { setMenuTarget(null); onPin(id, pinned); }}
           onExport={(id) => { setMenuTarget(null); onExport(id); }}
           onDelete={(id, title) => { setMenuTarget(null); onDelete(id, title); }}
+          onMoveToFolder={(convId, folderId) => { setMenuTarget(null); onMoveToFolder(convId, folderId); }}
           onClose={() => setMenuTarget(null)}
         />
       )}

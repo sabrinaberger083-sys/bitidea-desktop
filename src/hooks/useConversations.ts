@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { ConversationWithPreview } from '../types';
+import type { ConversationWithPreview, Folder } from '../types';
 import {
   countPinned,
   createConversation,
+  createFolder,
+  deleteFolderAndUnlink,
   listConversations,
+  listFolders,
   pinConversation,
   renameConversation,
+  renameFolder,
+  setConversationFolder,
   softDeleteConversation,
   softDeleteMany,
   undoDeleteConversation,
@@ -21,6 +26,8 @@ export function useConversations(projectId?: string | null) {
   const [allConversations, setAllConversations] = useState<ConversationWithPreview[]>([]);
   const [loading, setLoading] = useState(true);
   const [undo, setUndo] = useState<UndoState | null>(null);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -33,19 +40,45 @@ export function useConversations(projectId?: string | null) {
     }
   }, []);
 
+  const refreshFolders = useCallback(async () => {
+    try {
+      const list = await listFolders();
+      setFolders(list);
+    } catch (e) {
+      console.error('failed to load folders', e);
+    }
+  }, []);
+
   useEffect(() => {
     refresh();
-  }, [refresh]);
+    refreshFolders();
+  }, [refresh, refreshFolders]);
 
-  // Filter conversations by project when one is selected
+  // Filter conversations by project and folder when selected
   const conversations = useMemo(() => {
-    if (!projectId) return allConversations;
-    return allConversations.filter((c) => c.project_id === projectId);
-  }, [allConversations, projectId]);
+    let filtered = allConversations;
+    if (projectId) {
+      filtered = filtered.filter((c) => c.project_id === projectId);
+    }
+    if (activeFolderId) {
+      filtered = filtered.filter((c) => c.folder_id === activeFolderId);
+    }
+    return filtered;
+  }, [allConversations, projectId, activeFolderId]);
+
+  const conversationCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of allConversations) {
+      if (c.folder_id) {
+        map.set(c.folder_id, (map.get(c.folder_id) ?? 0) + 1);
+      }
+    }
+    return map;
+  }, [allConversations]);
 
   const create = useCallback(
-    async (id: string, title: string, projId?: string | null) => {
-      await createConversation(id, title, projId);
+    async (id: string, title: string, projId?: string | null, assistantId?: string | null) => {
+      await createConversation(id, title, projId, assistantId);
       await refresh();
     },
     [refresh],
@@ -111,11 +144,51 @@ export function useConversations(projectId?: string | null) {
     setUndo(null);
   }, [undo]);
 
+  const addFolder = useCallback(
+    async (name: string) => {
+      const id = crypto.randomUUID();
+      await createFolder(id, name);
+      await refreshFolders();
+    },
+    [refreshFolders],
+  );
+
+  const editFolderName = useCallback(
+    async (id: string, name: string) => {
+      if (!name.trim()) return;
+      await renameFolder(id, name.trim());
+      await refreshFolders();
+    },
+    [refreshFolders],
+  );
+
+  const removeFolder = useCallback(
+    async (id: string) => {
+      await deleteFolderAndUnlink(id);
+      if (activeFolderId === id) setActiveFolderId(null);
+      await refreshFolders();
+      await refresh();
+    },
+    [refreshFolders, refresh, activeFolderId],
+  );
+
+  const moveToFolder = useCallback(
+    async (convId: string, folderId: string | null) => {
+      await setConversationFolder(convId, folderId);
+      await refresh();
+    },
+    [refresh],
+  );
+
   return {
     conversations,
     loading,
     undo,
+    folders,
+    activeFolderId,
+    conversationCounts,
     refresh,
+    refreshFolders,
     create,
     rename,
     pin,
@@ -123,5 +196,10 @@ export function useConversations(projectId?: string | null) {
     removeMany,
     undoDelete,
     dismissUndo,
+    addFolder,
+    editFolderName,
+    removeFolder,
+    moveToFolder,
+    setActiveFolderId,
   };
 }
