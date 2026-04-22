@@ -6,6 +6,7 @@ import MessageList from './MessageList';
 import InputBox from './InputBox';
 import ApprovalModal from './ApprovalModal';
 import ArtifactPreview from './ArtifactPreview';
+import MarkdownEditor from './MarkdownEditor';
 import SettingsPanel from '../Settings/SettingsPanel';
 import ConversationSidebar from './ConversationSidebar';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
@@ -36,7 +37,7 @@ import type {
   ThinkingEvent,
   ToolEvent,
 } from '../../types';
-import { save as showSaveDialog } from '@tauri-apps/plugin-dialog';
+import { open as openFileDialog, save as showSaveDialog } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import './ChatWindow.css';
 
@@ -127,6 +128,7 @@ export default function ChatWindow({
   );
   const [confirmDelete, setConfirmDelete] = useState<string[] | null>(null);
   const [previewArtifact, setPreviewArtifact] = useState<Artifact | null>(null);
+  const [editorFilePath, setEditorFilePath] = useState<string | null>(null);
   const [dbReady, setDbReady] = useState(false);
 
   const streams = useStreamManager();
@@ -585,6 +587,21 @@ export default function ChatWindow({
     handleSelectConversation(hit.conversation_id);
   }
 
+  async function handleOpenMarkdownFile() {
+    try {
+      const selected = await openFileDialog({
+        multiple: false,
+        filters: [{ name: 'Markdown', extensions: ['md', 'txt'] }],
+      });
+      if (selected && typeof selected === 'string') {
+        setPreviewArtifact(null);
+        setEditorFilePath(selected);
+      }
+    } catch (e) {
+      console.error('open file dialog failed', e);
+    }
+  }
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
@@ -607,6 +624,13 @@ export default function ChatWindow({
             model={config?.model ?? ''}
             onModelChange={handleModelChange}
           />
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={handleOpenMarkdownFile}
+          >
+            {lang === 'zh' ? '📝 编辑器' : '📝 EDITOR'}
+          </Button>
           <Button
             size="sm"
             variant="secondary"
@@ -641,8 +665,8 @@ export default function ChatWindow({
           onDismissUndo={convs.dismissUndo}
           onSearchSelect={handleSearchSelect}
         />
-        <main className={`chat-center ${previewArtifact ? 'with-preview' : ''}`}>
-          <MessageList messages={messages} lang={lang} onPreviewArtifact={setPreviewArtifact} />
+        <main className={`chat-center ${(previewArtifact || editorFilePath) ? 'with-preview' : ''}`}>
+          <MessageList messages={messages} lang={lang} onPreviewArtifact={(a) => { setEditorFilePath(null); setPreviewArtifact(a); }} />
           <InputBox
             lang={lang}
             streaming={streaming}
@@ -654,6 +678,13 @@ export default function ChatWindow({
           <ArtifactPreview
             artifact={previewArtifact}
             onClose={() => setPreviewArtifact(null)}
+          />
+        )}
+        {editorFilePath && (
+          <MarkdownEditor
+            filePath={editorFilePath}
+            lang={lang}
+            onClose={() => setEditorFilePath(null)}
           />
         )}
       </div>
