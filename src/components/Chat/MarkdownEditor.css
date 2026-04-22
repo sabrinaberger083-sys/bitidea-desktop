@@ -1,0 +1,110 @@
+/* ══════════════════════════════════════════════════════════
+   Markdown Editor — Split-pane editor + live preview
+   Mirrors ArtifactPreview layout (50% side panel, slide-in).
+   ══════════════════════════════════════════════════════════ */
+
+.mde-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 50%;
+  max-width: 50%;
+  min-width: 320px;
+  height: 100%;
+  border-left: 1px solid var(--panel-border);
+  background: var(--panel-solid);
+  animation: apSlideIn 0.25s ease both;
+}
+
+/* ── Header ───────────────────────────────────────────── */
+
+.mde-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--panel-border);
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.mde-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mde-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  background: rgba(0, 229, 255, 0.1);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+}
+
+.mde-filename {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mde-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Body (split pane) ────────────────────────────────── */
+
+.mde-body {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  min-height: 0;
+}
+
+.mde-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-right: 1px solid var(--panel-border);
+}
+
+.mde-textarea {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  tab-size: 2;
+}
+
+.mde-textarea::placeholder {
+  color: var(--ink-faint);
+}
+
+.mde-preview {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 16px;
+}
