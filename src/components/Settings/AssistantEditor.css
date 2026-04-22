@@ -1,0 +1,187 @@
+/* ══════════════════════════════════════════════════════════
+   AssistantEditor — Modal overlay for creating/editing
+   custom assistants.
+   ══════════════════════════════════════════════════════════ */
+
+/* ── Backdrop ─────────────────────────────────────────────── */
+.ae-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 16px;
+  animation: aeBackdropIn 0.18s ease both;
+}
+
+@keyframes aeBackdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Card ─────────────────────────────────────────────────── */
+.ae-card {
+  background: var(--panel-solid);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-md);
+  width: min(480px, 100%);
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(74, 158, 255, 0.08);
+  animation: aeCardIn 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes aeCardIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Header ───────────────────────────────────────────────── */
+.ae-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--panel-border);
+  flex-shrink: 0;
+}
+
+.ae-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+}
+
+.ae-close {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  color: var(--ink-dim);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-xs);
+  cursor: pointer;
+  transition: all var(--t);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.ae-close:hover {
+  color: var(--accent-2);
+  border-color: var(--accent);
+}
+
+/* ── Body ─────────────────────────────────────────────────── */
+.ae-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Field ────────────────────────────────────────────────── */
+.ae-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ae-field-grow {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Input overrides for this modal ──────────────────────── */
+.ae-body .input,
+.ae-body .textarea {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.ae-body .input:focus,
+.ae-body .textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.15);
+}
+.ae-body .input::placeholder,
+.ae-body .textarea::placeholder {
+  color: var(--ink-faint);
+}
+.ae-body .input[readonly],
+.ae-body .textarea[readonly] {
+  opacity: 0.65;
+  cursor: default;
+}
+
+/* ── System prompt textarea ───────────────────────────────── */
+.ae-prompt {
+  min-height: 200px;
+  resize: vertical;
+}
+
+/* ── Icon grid ────────────────────────────────────────────── */
+.ae-icon-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ae-icon-btn {
+  width: 36px;
+  height: 36px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color var(--t), background var(--t), box-shadow var(--t);
+  flex-shrink: 0;
+}
+.ae-icon-btn:hover:not(.readonly) {
+  border-color: var(--accent);
+  background: rgba(74, 158, 255, 0.08);
+}
+.ae-icon-btn.selected {
+  border-color: var(--accent);
+  background: rgba(74, 158, 255, 0.15);
+  box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
+}
+.ae-icon-btn.readonly {
+  cursor: default;
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+/* ── Footer ───────────────────────────────────────────────── */
+.ae-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--panel-border);
+  flex-shrink: 0;
+}
+
+.ae-foot-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
