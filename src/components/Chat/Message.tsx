@@ -1,10 +1,11 @@
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import type { AssistantEvent, Attachment, Message } from '../../types';
+import type { AssistantEvent, Attachment, Message, ThinkingEvent } from '../../types';
 import type { Artifact } from '../../lib/artifacts';
 import { extractRenderableArtifacts, isRenderable } from '../../lib/artifacts';
+import { synthesizeSpeech } from '../../lib/sidecar';
 import ToolCard from './ToolCard';
 import ThinkingBlock from './ThinkingBlock';
 import StepIndicator from './StepIndicator';
@@ -15,6 +16,8 @@ interface Props {
   message: Message;
   onPreviewArtifact?: (artifact: Artifact) => void;
 }
+
+type RenderedEvent = Exclude<AssistantEvent, ThinkingEvent>;
 
 /**
  * Build a custom `pre` renderer that detects renderable code blocks
@@ -118,15 +121,19 @@ function TextBubble({
 
   return (
     <>
-      <div className="md">
-        <MarkdownBlock
-          text={text}
-          artifacts={artifacts}
-          onPreview={onPreviewArtifact}
-        />
-      </div>
-      {message.streaming && message.content && (
-        <span className="msg-caret" aria-hidden>▍</span>
+      {message.streaming ? (
+        <div className="msg-plain msg-plain-stream">
+          {message.content}
+          {message.content && <span className="msg-caret" aria-hidden>▍</span>}
+        </div>
+      ) : (
+        <div className="md">
+          <MarkdownBlock
+            text={text}
+            artifacts={artifacts}
+            onPreview={onPreviewArtifact}
+          />
+        </div>
       )}
     </>
   );
@@ -138,18 +145,46 @@ function TextBubble({
 function EventStream({
   events,
   streaming,
+  statusText,
   onPreviewArtifact,
 }: {
   events: AssistantEvent[];
   streaming?: boolean;
+  statusText?: string;
   onPreviewArtifact?: (artifact: Artifact) => void;
 }) {
-  const lastIdx = events.length - 1;
+  const contentEvents = useMemo(
+    () => {
+      const merged: RenderedEvent[] = [];
+      for (const ev of events) {
+        if (ev.kind === 'thinking') continue;
+        const last = merged[merged.length - 1];
+        if (ev.kind === 'text' && last?.kind === 'text') {
+          merged[merged.length - 1] = {
+            kind: 'text',
+            text: last.text + ev.text,
+          };
+          continue;
+        }
+        merged.push(ev);
+      }
+      return merged;
+    },
+    [events],
+  );
+  const thinkingText = useMemo(
+    () => events
+      .filter((e): e is ThinkingEvent => e.kind === 'thinking')
+      .map((e) => e.text)
+      .join(''),
+    [events],
+  );
+  const lastIdx = contentEvents.length - 1;
 
   // Collect all text to extract artifacts once
   const fullText = useMemo(
-    () => events.filter((e) => e.kind === 'text').map((e) => (e as any).text).join(''),
-    [events],
+    () => contentEvents.filter((e) => e.kind === 'text').map((e) => (e as any).text).join(''),
+    [contentEvents],
   );
   const artifacts = useMemo(
     () => (onPreviewArtifact ? extractRenderableArtifacts(fullText) : []),
@@ -158,9 +193,21 @@ function EventStream({
 
   return (
     <div className="msg-events">
-      {events.map((ev, i) => {
+      {contentEvents.map((ev, i) => {
         if (ev.kind === 'text') {
           const isLast = i === lastIdx;
+          if (streaming) {
+            return (
+              <div key={`t-${i}`} className="msg-event msg-event-plain">
+                <div className="msg-plain msg-plain-stream">
+                  {ev.text}
+                  {isLast && ev.text && (
+                    <span className="msg-caret" aria-hidden>▍</span>
+                  )}
+                </div>
+              </div>
+            );
+          }
           return (
             <div key={`t-${i}`} className="msg-event msg-event-text md">
               <MarkdownBlock
@@ -174,14 +221,6 @@ function EventStream({
             </div>
           );
         }
-        if (ev.kind === 'thinking') {
-          const isLast = i === lastIdx;
-          return (
-            <div key={`think-${i}`} className="msg-event">
-              <ThinkingBlock text={ev.text} live={!!streaming && isLast} />
-            </div>
-          );
-        }
         // tool
         return (
           <div key={`tool-${ev.id}`} className="msg-event">
@@ -189,6 +228,15 @@ function EventStream({
           </div>
         );
       })}
+      {(thinkingText.trim() || streaming) && (
+        <div key="thinking-panel" className="msg-event">
+          <ThinkingBlock
+            text={thinkingText}
+            live={!!streaming}
+            statusText={statusText}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -216,9 +264,53 @@ function AttachmentStrip({ attachments }: { attachments: Attachment[] }) {
   );
 }
 
+function SpeakButton({ text }: { text: string }) {
+  const [playing, setPlaying] = useState(false);
+
+  async function handleSpeak() {
+    if (playing || !text.trim()) return;
+    setPlaying(true);
+    try {
+      const result = await synthesizeSpeech(text);
+      if (result.ok && result.audio_base64) {
+        const audio = new Audio(`data:audio/mp3;base64,${result.audio_base64}`);
+        audio.onended = () => setPlaying(false);
+        audio.onerror = () => setPlaying(false);
+        await audio.play();
+        return;
+      }
+    } catch { /* ignore */ }
+    setPlaying(false);
+  }
+
+  return (
+    <button
+      type="button"
+      className="msg-speak-btn"
+      onClick={handleSpeak}
+      disabled={playing}
+      title={playing ? 'Playing…' : 'Read aloud'}
+      aria-label="Read aloud"
+    >
+      {playing ? '⏸' : '🔊'}
+    </button>
+  );
+}
+
 function MessageComponent({ message, onPreviewArtifact }: Props) {
   const isUser = message.role === 'user';
-  const hasEvents = !isUser && !!message.events && message.events.length > 0;
+  const hasEvents = !isUser && ((message.events?.length ?? 0) > 0 || !!message.streaming);
+  const userText = isUser ? (message.content ?? '').trim() : '';
+  const compactUserBubble = isUser
+    && !message.attachments?.length
+    && !!userText
+    && !userText.includes('\n')
+    && userText.replace(/\s+/g, ' ').length <= 12;
+  const bubbleClassName = [
+    'msg-bubble',
+    isUser ? 'bubble-user' : 'bubble-asst',
+    compactUserBubble ? 'bubble-user-compact' : '',
+  ].filter(Boolean).join(' ');
 
   return (
     <div className={`msg ${isUser ? 'msg-user' : 'msg-assistant'}`}>
@@ -234,7 +326,7 @@ function MessageComponent({ message, onPreviewArtifact }: Props) {
             <StatusLine text={message.streaming ? message.status : undefined} />
           </div>
         )}
-        <div className={`msg-bubble ${isUser ? 'bubble-user' : 'bubble-asst'}`}>
+        <div className={bubbleClassName}>
           {isUser ? (
             <>
               {message.attachments && message.attachments.length > 0 && (
@@ -246,12 +338,18 @@ function MessageComponent({ message, onPreviewArtifact }: Props) {
             <EventStream
               events={message.events!}
               streaming={message.streaming}
+              statusText={message.status}
               onPreviewArtifact={onPreviewArtifact}
             />
           ) : (
             <TextBubble message={message} onPreviewArtifact={onPreviewArtifact} />
           )}
         </div>
+        {!isUser && !message.streaming && message.content && (
+          <div className="msg-actions">
+            <SpeakButton text={message.content} />
+          </div>
+        )}
       </div>
     </div>
   );

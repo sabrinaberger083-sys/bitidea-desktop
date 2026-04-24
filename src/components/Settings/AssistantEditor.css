@@ -7,9 +7,9 @@
 .ae-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(15, 25, 50, 0.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -52,9 +52,9 @@
 }
 
 .ae-title {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--accent-2);
 }
@@ -104,7 +104,7 @@
 /* ── Input overrides for this modal ──────────────────────── */
 .ae-body .input,
 .ae-body .textarea {
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(15, 25, 50, 0.25);
   border: 1px solid var(--panel-border);
   border-radius: var(--r-sm);
   color: var(--ink);
@@ -142,7 +142,7 @@
 .ae-icon-btn {
   width: 36px;
   height: 36px;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(15, 25, 50, 0.2);
   border: 1px solid var(--panel-border);
   border-radius: var(--r-sm);
   cursor: pointer;

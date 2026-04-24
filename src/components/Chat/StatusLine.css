@@ -1,19 +1,41 @@
 .status-line {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-  padding: 2px 8px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--ink-dim);
-  letter-spacing: 0.04em;
-  animation: fadeIn 0.2s ease both;
+  max-width: min(100%, 720px);
+  padding: 6px 11px;
+  border: 1px solid rgba(126, 182, 255, 0.12);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(18, 27, 54, 0.72), rgba(10, 15, 34, 0.86));
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  color: rgba(220, 235, 255, 0.74);
+  letter-spacing: 0.02em;
+  animation: fadeIn 0.24s ease both;
 }
+
 .status-dot {
-  color: var(--accent-2);
-  font-size: 13px;
+  width: 7px;
+  height: 7px;
+  display: inline-block;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #5f95ff, #7ad7ff);
+  box-shadow: 0 0 14px rgba(125, 211, 252, 0.55);
+  font-size: 0;
   animation: pulse 1.6s ease-in-out infinite;
 }
+
 .status-text {
-  font-style: italic;
+  min-width: 0;
+  flex: 1 1 220px;
+  font-style: normal;
+  line-height: 1.42;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }

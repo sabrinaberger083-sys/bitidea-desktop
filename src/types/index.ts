@@ -2,7 +2,21 @@
    BITIDEA Desktop · Shared Types
    ══════════════════════════════════════════════════════════ */
 
-export type Provider = 'openai' | 'openrouter' | 'anthropic' | 'custom';
+export type Provider =
+  | 'openai'
+  | 'openrouter'
+  | 'anthropic'
+  | 'gemini'
+  | 'zai'
+  | 'kimi'
+  | 'minimax'
+  | 'xiaomi'
+  | 'huggingface'
+  | 'arcee'
+  | 'ollama-cloud'
+  | 'opencode-zen'
+  | 'opencode-go'
+  | 'custom';
 
 export type Lang = 'en' | 'zh';
 

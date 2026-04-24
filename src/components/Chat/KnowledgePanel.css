@@ -32,7 +32,7 @@
   flex: 1;
 }
 .kb-toggle-count {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   color: var(--ink-faint);
   background: rgba(74, 158, 255, 0.1);
@@ -82,8 +82,8 @@
   gap: 8px;
   padding: 6px 8px;
   border-radius: var(--r-xs);
-  background: rgba(0, 0, 0, 0.15);
-  border: 1px solid rgba(120, 180, 255, 0.06);
+  background: rgba(15, 25, 50, 0.2);
+  border: 1px solid rgba(120, 180, 255, 0.05);
   transition: border-color var(--t-fast);
 }
 .kb-doc-item:hover {
@@ -112,7 +112,7 @@
 .kb-doc-meta {
   font-size: 10px;
   color: var(--ink-faint);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 
 .kb-doc-remove {

@@ -54,8 +54,8 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--accent-2);
-  background: rgba(0, 229, 255, 0.1);
-  border: 1px solid rgba(0, 229, 255, 0.25);
+  background: rgba(125, 211, 252, 0.1);
+  border: 1px solid rgba(125, 211, 252, 0.25);
   border-radius: var(--r-sm);
   white-space: nowrap;
 }
@@ -94,7 +94,7 @@
 .ap-btn:hover {
   color: var(--ink);
   border-color: var(--panel-border-strong);
-  background: rgba(120, 180, 255, 0.06);
+  background: rgba(120, 180, 255, 0.05);
 }
 
 .ap-btn-close {
@@ -141,7 +141,7 @@
 
 .ap-fallback {
   padding: 16px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13px;
   color: var(--ink);
   white-space: pre-wrap;

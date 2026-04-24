@@ -95,9 +95,24 @@ function upsertTool(
   events: AssistantEvent[],
   id: string,
   mutate: (t: ToolEvent) => ToolEvent,
+  fallback?: Partial<ToolEvent>,
 ): AssistantEvent[] {
   const idx = events.findIndex((e) => e.kind === 'tool' && e.id === id);
-  if (idx === -1) return events;
+  if (idx === -1) {
+    if (!fallback) return events;
+    const seeded: ToolEvent = {
+      kind: 'tool',
+      id,
+      name: fallback.name ?? 'tool',
+      args: fallback.args ?? {},
+      preview: fallback.preview,
+      output: fallback.output ?? '',
+      result: fallback.result,
+      auto_allowed: fallback.auto_allowed,
+      allowed_until_ms: fallback.allowed_until_ms,
+    };
+    return [...events, mutate(seeded)];
+  }
   const next = [...events];
   next[idx] = mutate(next[idx] as ToolEvent);
   return next;
@@ -392,6 +407,55 @@ export default function ChatWindow({
     }));
 
     const capturedConvId = convId;
+    const pendingStreamRef = {
+      text: '',
+      thinking: '',
+      status: undefined as string | undefined,
+      statusDirty: false,
+    };
+    let flushRaf = 0;
+
+    const flushPendingStream = () => {
+      if (flushRaf) {
+        cancelAnimationFrame(flushRaf);
+        flushRaf = 0;
+      }
+      const textChunk = pendingStreamRef.text;
+      const thinkingChunk = pendingStreamRef.thinking;
+      const statusDirty = pendingStreamRef.statusDirty;
+      const statusText = pendingStreamRef.status;
+      pendingStreamRef.text = '';
+      pendingStreamRef.thinking = '';
+      pendingStreamRef.status = undefined;
+      pendingStreamRef.statusDirty = false;
+
+      if (!textChunk && !thinkingChunk && !statusDirty) return;
+
+      updateMessagesFor(capturedConvId, (prev) => {
+        const updated = updateAssistant(prev, assistantId, (m) => {
+          let nextEvents = m.events || [];
+          if (textChunk) nextEvents = appendTextEvent(nextEvents, textChunk);
+          if (thinkingChunk) nextEvents = appendThinkingEvent(nextEvents, thinkingChunk);
+          return {
+            ...m,
+            content: textChunk ? m.content + textChunk : m.content,
+            status: statusDirty ? statusText : m.status,
+            events: nextEvents,
+          };
+        });
+        const msg = updated.find((m) => m.id === assistantId);
+        if (msg) schedulePersist(msg, capturedConvId);
+        return updated;
+      });
+    };
+
+    const schedulePendingFlush = () => {
+      if (flushRaf) return;
+      flushRaf = requestAnimationFrame(() => {
+        flushRaf = 0;
+        flushPendingStream();
+      });
+    };
 
     // Resolve system prompt from the current assistant
     let systemPrompt: string | undefined;
@@ -402,64 +466,72 @@ export default function ChatWindow({
 
     const controller = streamChat(history, {
       onToken: (txt) => {
-        updateMessagesFor(capturedConvId, (prev) => {
-          const updated = updateAssistant(prev, assistantId, (m) => ({
-            ...m,
-            content: m.content + txt,
-            events: appendTextEvent(m.events || [], txt),
-          }));
-          const msg = updated.find((m) => m.id === assistantId);
-          if (msg) schedulePersist(msg, capturedConvId);
-          return updated;
-        });
+        pendingStreamRef.text += txt;
+        schedulePendingFlush();
       },
       onThinking: (txt) => {
-        updateMessagesFor(capturedConvId, (prev) =>
-          updateAssistant(prev, assistantId, (m) => ({
-            ...m,
-            events: appendThinkingEvent(m.events || [], txt),
-          })),
-        );
+        pendingStreamRef.thinking += txt;
+        schedulePendingFlush();
       },
       onToolStart: (t) => {
+        flushPendingStream();
         updateMessagesFor(capturedConvId, (prev) =>
           updateAssistant(prev, assistantId, (m) => ({
             ...m,
-            events: [
-              ...(m.events || []),
+            events: upsertTool(
+              m.events || [],
+              t.id,
+              (tool) => ({
+                ...tool,
+                name: t.name,
+                args: t.args,
+                preview: t.preview,
+                auto_allowed: t.auto_allowed,
+                allowed_until_ms: t.allowed_until_ms,
+              }),
               {
-                kind: 'tool',
-                id: t.id,
                 name: t.name,
                 args: t.args,
                 preview: t.preview,
                 output: '',
                 auto_allowed: t.auto_allowed,
                 allowed_until_ms: t.allowed_until_ms,
-              } as ToolEvent,
-            ],
+              },
+            ),
           })),
         );
       },
       onToolOutput: (id, chunk) => {
+        flushPendingStream();
         updateMessagesFor(capturedConvId, (prev) =>
           updateAssistant(prev, assistantId, (m) => ({
             ...m,
-            events: upsertTool(m.events || [], id, (t) => ({
-              ...t,
-              output: t.output + chunk,
-            })),
+            events: upsertTool(
+              m.events || [],
+              id,
+              (t) => ({
+                ...t,
+                output: t.output + chunk,
+              }),
+              { output: chunk },
+            ),
           })),
         );
       },
       onToolResult: (id, result) => {
+        flushPendingStream();
         updateMessagesFor(capturedConvId, (prev) =>
           updateAssistant(prev, assistantId, (m) => ({
             ...m,
-            events: upsertTool(m.events || [], id, (t) => ({
-              ...t,
-              result,
-            })),
+            events: upsertTool(
+              m.events || [],
+              id,
+              (t) => ({
+                ...t,
+                result,
+              }),
+              { result, output: '' },
+            ),
           })),
         );
       },
@@ -473,16 +545,18 @@ export default function ChatWindow({
         });
       },
       onStep: (step) => {
+        flushPendingStream();
         updateMessagesFor(capturedConvId, (prev) =>
           updateAssistant(prev, assistantId, (m) => ({ ...m, step })),
         );
       },
       onStatus: (txt) => {
-        updateMessagesFor(capturedConvId, (prev) =>
-          updateAssistant(prev, assistantId, (m) => ({ ...m, status: txt })),
-        );
+        pendingStreamRef.status = txt;
+        pendingStreamRef.statusDirty = true;
+        schedulePendingFlush();
       },
       onDone: () => {
+        flushPendingStream();
         updateMessagesFor(capturedConvId, (prev) => {
           const updated = updateAssistant(prev, assistantId, (m) => ({
             ...m,
@@ -496,6 +570,7 @@ export default function ChatWindow({
         streams.endStream(capturedConvId);
       },
       onError: (msg) => {
+        flushPendingStream();
         updateMessagesFor(capturedConvId, (prev) => {
           const errorText = `_connection error:_ \`${msg.replace(/`/g, "'")}\``;
           const updated = updateAssistant(prev, assistantId, (m) => {

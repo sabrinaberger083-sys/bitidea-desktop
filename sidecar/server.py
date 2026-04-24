@@ -54,7 +54,11 @@ from .scheduler import RoutineScheduler
 logger = logging.getLogger("sidecar.server")
 
 VERSION = "0.1.0"
-Provider = Literal["openai", "openrouter", "anthropic", "custom"]
+Provider = Literal[
+    "openai", "openrouter", "anthropic", "gemini", "zai", "kimi",
+    "minimax", "xiaomi", "huggingface", "arcee", "ollama-cloud",
+    "opencode-zen", "opencode-go", "custom",
+]
 
 CONFIG_DIR = Path.home() / ".bitidea-desktop"
 CONFIG_PATH = CONFIG_DIR / "config.json"
@@ -175,18 +179,32 @@ def _save_config(data: dict) -> None:
     os.replace(tmp_path, CONFIG_PATH)
 
 
+_PROVIDER_BASE_URLS: dict[str, str] = {
+    "openai": "https://api.openai.com",
+    "openrouter": "https://openrouter.ai/api",
+    "anthropic": "https://api.anthropic.com",
+    "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "zai": "https://api.z.ai/api/paas/v4",
+    "kimi": "https://api.kimi.com/coding/v1",
+    "minimax": "https://api.minimax.io/v1",
+    "xiaomi": "https://api.xiaomimimo.com/v1",
+    "huggingface": "https://router.huggingface.co/v1",
+    "arcee": "https://conductor.arcee.ai/v1",
+    "ollama-cloud": "https://ollama.com/v1",
+    "opencode-zen": "https://opencode.ai/zen/v1",
+    "opencode-go": "https://opencode.ai/zen/go/v1",
+}
+
+
 def _default_base_url(provider: Provider, base_url: Optional[str]) -> str:
-    if provider == "openai":
-        return "https://api.openai.com"
-    if provider == "openrouter":
-        return "https://openrouter.ai/api"
-    if provider == "anthropic":
-        return "https://api.anthropic.com"
-    if provider == "custom":
-        if not base_url:
-            raise HTTPException(400, "custom provider requires base_url")
+    if base_url:
         return base_url.rstrip("/")
-    raise HTTPException(400, f"unknown provider {provider!r}")
+    if provider == "custom":
+        raise HTTPException(400, "custom provider requires base_url")
+    url = _PROVIDER_BASE_URLS.get(provider)
+    if not url:
+        raise HTTPException(400, f"unknown provider {provider!r}")
+    return url
 
 
 # ---------------------------------------------------------------------------
@@ -283,8 +301,14 @@ async def test_connection(body: Optional[ConfigIn] = None) -> TestResult:
                     },
                 )
             else:
+                # Providers whose base_url already includes a versioned path
+                # (e.g. /v1, /v1beta/openai) use /models directly.
+                if re.search(r"/v\d", base_url):
+                    models_url = f"{base_url}/models"
+                else:
+                    models_url = f"{base_url}/v1/models"
                 r = await client.get(
-                    f"{base_url}/v1/models",
+                    models_url,
                     headers={"Authorization": f"Bearer {cfg['api_key']}"},
                 )
             if r.status_code >= 400:
@@ -681,3 +705,364 @@ async def startup_scheduler() -> None:
 @app.on_event("shutdown")
 async def shutdown_scheduler() -> None:
     await scheduler.stop()
+
+
+# ---------------------------------------------------------------------------
+# Memory system
+# ---------------------------------------------------------------------------
+
+AGENT_STATE_DIR = Path.home() / ".bitidea-desktop" / "agent-state"
+
+
+def _agent_config_yaml() -> Path:
+    return AGENT_STATE_DIR / "config.yaml"
+
+
+def _load_agent_yaml() -> dict:
+    p = _agent_config_yaml()
+    if not p.exists():
+        return {}
+    try:
+        import yaml
+        return yaml.safe_load(p.read_text("utf-8")) or {}
+    except Exception:
+        return {}
+
+
+def _save_agent_yaml(data: dict) -> None:
+    import yaml
+    AGENT_STATE_DIR.mkdir(parents=True, exist_ok=True)
+    _agent_config_yaml().write_text(yaml.dump(data, default_flow_style=False), "utf-8")
+
+
+class MemoryConfigIn(BaseModel):
+    enabled: bool = True
+    provider: Optional[str] = "builtin"
+    honcho_api_key: Optional[str] = None
+    recall_mode: Optional[str] = "hybrid"
+
+
+@app.get("/memory/status", dependencies=[Depends(require_token)])
+async def memory_status() -> dict:
+    cfg = _load_agent_yaml()
+    mem = cfg.get("memory", {})
+    honcho_json = AGENT_STATE_DIR / "honcho.json"
+    honcho_connected = False
+    if honcho_json.exists():
+        try:
+            hdata = json.loads(honcho_json.read_text("utf-8"))
+            honcho_connected = bool(hdata.get("enabled"))
+        except Exception:
+            pass
+    return {
+        "enabled": mem.get("enabled", True),
+        "provider": mem.get("provider", "builtin"),
+        "recall_mode": mem.get("recall_mode", "hybrid"),
+        "honcho_connected": honcho_connected,
+        "has_honcho_key": bool(mem.get("honcho_api_key")),
+    }
+
+
+@app.post("/memory/config", dependencies=[Depends(require_token)])
+async def save_memory_config(body: MemoryConfigIn) -> dict:
+    cfg = _load_agent_yaml()
+    mem = cfg.setdefault("memory", {})
+    mem["enabled"] = body.enabled
+    mem["provider"] = body.provider or "builtin"
+    mem["recall_mode"] = body.recall_mode or "hybrid"
+    if body.honcho_api_key:
+        mem["honcho_api_key"] = body.honcho_api_key
+    _save_agent_yaml(cfg)
+
+    if body.provider == "honcho" and body.honcho_api_key:
+        honcho_json = AGENT_STATE_DIR / "honcho.json"
+        AGENT_STATE_DIR.mkdir(parents=True, exist_ok=True)
+        honcho_json.write_text(json.dumps({
+            "enabled": True,
+            "api_key": body.honcho_api_key,
+        }, indent=2), "utf-8")
+
+    return {"ok": True}
+
+
+@app.get("/memory/entries", dependencies=[Depends(require_token)])
+async def memory_entries() -> dict:
+    result: dict[str, Optional[str]] = {"memory_md": None, "user_md": None}
+    for name, key in [("MEMORY.md", "memory_md"), ("USER.md", "user_md")]:
+        p = AGENT_STATE_DIR / name
+        if p.exists():
+            try:
+                result[key] = p.read_text("utf-8")
+            except Exception:
+                result[key] = None
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Terminal backend config
+# ---------------------------------------------------------------------------
+
+
+class TerminalConfigIn(BaseModel):
+    backend: str = "local"
+    docker_image: Optional[str] = None
+    ssh_host: Optional[str] = None
+    ssh_user: Optional[str] = None
+    ssh_port: Optional[int] = 22
+    ssh_key: Optional[str] = None
+    modal_image: Optional[str] = None
+
+
+@app.get("/terminal/config", dependencies=[Depends(require_token)])
+async def get_terminal_config() -> dict:
+    cfg = _load_agent_yaml()
+    term = cfg.get("terminal", {})
+    return {
+        "backend": term.get("backend", "local"),
+        "docker_image": term.get("docker_image"),
+        "ssh_host": term.get("ssh_host"),
+        "ssh_user": term.get("ssh_user"),
+        "ssh_port": term.get("ssh_port", 22),
+        "ssh_key": term.get("ssh_key"),
+        "modal_image": term.get("modal_image"),
+    }
+
+
+@app.post("/terminal/config", dependencies=[Depends(require_token)])
+async def save_terminal_config(body: TerminalConfigIn) -> dict:
+    cfg = _load_agent_yaml()
+    term = cfg.setdefault("terminal", {})
+    term["backend"] = body.backend
+    if body.docker_image:
+        term["docker_image"] = body.docker_image
+    if body.ssh_host:
+        term["ssh_host"] = body.ssh_host
+        term["ssh_user"] = body.ssh_user or "root"
+        term["ssh_port"] = body.ssh_port or 22
+        term["ssh_key"] = body.ssh_key
+    if body.modal_image:
+        term["modal_image"] = body.modal_image
+    _save_agent_yaml(cfg)
+
+    os.environ["TERMINAL_ENV"] = body.backend
+    if body.docker_image:
+        os.environ["TERMINAL_DOCKER_IMAGE"] = body.docker_image
+    if body.ssh_host:
+        os.environ["TERMINAL_SSH_HOST"] = body.ssh_host
+        os.environ["TERMINAL_SSH_USER"] = body.ssh_user or "root"
+        os.environ["TERMINAL_SSH_PORT"] = str(body.ssh_port or 22)
+        if body.ssh_key:
+            os.environ["TERMINAL_SSH_KEY"] = body.ssh_key
+
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Voice (STT / TTS)
+# ---------------------------------------------------------------------------
+
+
+class VoiceTranscribeIn(BaseModel):
+    audio_base64: str
+    format: str = "webm"
+
+
+class VoiceSynthesizeIn(BaseModel):
+    text: str
+    voice: Optional[str] = None
+
+
+@app.get("/voice/config", dependencies=[Depends(require_token)])
+async def get_voice_config() -> dict:
+    cfg = _load_agent_yaml()
+    stt = cfg.get("stt", {})
+    tts = cfg.get("tts", {})
+    return {
+        "stt_provider": stt.get("provider", "local"),
+        "tts_provider": tts.get("provider", "edge-tts"),
+        "stt_available": True,
+        "tts_available": True,
+    }
+
+
+@app.post("/voice/config", dependencies=[Depends(require_token)])
+async def save_voice_config(body: dict) -> dict:
+    cfg = _load_agent_yaml()
+    if "stt_provider" in body:
+        cfg.setdefault("stt", {})["provider"] = body["stt_provider"]
+    if "tts_provider" in body:
+        cfg.setdefault("tts", {})["provider"] = body["tts_provider"]
+    if "groq_api_key" in body:
+        cfg.setdefault("stt", {})["groq_api_key"] = body["groq_api_key"]
+    if "openai_api_key" in body:
+        cfg.setdefault("voice", {})["openai_api_key"] = body["openai_api_key"]
+    _save_agent_yaml(cfg)
+    return {"ok": True}
+
+
+@app.post("/voice/transcribe", dependencies=[Depends(require_token)])
+async def voice_transcribe(body: VoiceTranscribeIn) -> dict:
+    import base64
+    import tempfile
+    audio_bytes = base64.b64decode(body.audio_base64)
+    with tempfile.NamedTemporaryFile(suffix=f".{body.format}", delete=False) as f:
+        f.write(audio_bytes)
+        tmp_path = f.name
+    try:
+        bitidea_home = str(AGENT_STATE_DIR)
+        os.environ["BITIDEA_HOME"] = bitidea_home
+        try:
+            from tools.transcription_tools import transcribe_audio
+            text = transcribe_audio(tmp_path)
+        except ImportError:
+            return {"ok": False, "error": "transcription tools not installed", "text": ""}
+        return {"ok": True, "text": text}
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+
+@app.post("/voice/synthesize", dependencies=[Depends(require_token)])
+async def voice_synthesize(body: VoiceSynthesizeIn) -> dict:
+    import base64
+    try:
+        from tools.tts_tool import synthesize_speech
+        audio_bytes = synthesize_speech(body.text, voice=body.voice)
+        return {"ok": True, "audio_base64": base64.b64encode(audio_bytes).decode()}
+    except ImportError:
+        return {"ok": False, "error": "TTS tools not installed", "audio_base64": ""}
+
+
+# ---------------------------------------------------------------------------
+# Messaging gateway
+# ---------------------------------------------------------------------------
+
+_gateway_bridge: Optional["GatewayBridge"] = None
+
+
+class GatewayConfigIn(BaseModel):
+    telegram_token: Optional[str] = None
+    telegram_allowed_users: Optional[str] = None
+    discord_token: Optional[str] = None
+    slack_bot_token: Optional[str] = None
+    slack_app_token: Optional[str] = None
+    feishu_app_id: Optional[str] = None
+    feishu_app_secret: Optional[str] = None
+    feishu_verification_token: Optional[str] = None
+    feishu_encrypt_key: Optional[str] = None
+
+
+@app.get("/gateway/status", dependencies=[Depends(require_token)])
+async def gateway_status() -> dict:
+    global _gateway_bridge
+    if _gateway_bridge is None:
+        return {"running": False, "platforms": []}
+    return _gateway_bridge.status()
+
+
+@app.post("/gateway/start", dependencies=[Depends(require_token)])
+async def gateway_start() -> dict:
+    global _gateway_bridge
+    if _gateway_bridge and _gateway_bridge.is_running():
+        return {"ok": True, "message": "already running"}
+    try:
+        from .gateway_bridge import GatewayBridge
+        cfg = _load_config()
+        agent_cfg = _load_agent_yaml()
+        _gateway_bridge = GatewayBridge(cfg, agent_cfg)
+        _gateway_bridge.start()
+        return {"ok": True}
+    except ImportError:
+        return {"ok": False, "error": "gateway dependencies not installed"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.post("/gateway/stop", dependencies=[Depends(require_token)])
+async def gateway_stop() -> dict:
+    global _gateway_bridge
+    if _gateway_bridge:
+        _gateway_bridge.stop()
+        _gateway_bridge = None
+    return {"ok": True}
+
+
+@app.get("/gateway/platforms", dependencies=[Depends(require_token)])
+async def gateway_platforms() -> dict:
+    cfg = _load_agent_yaml()
+    gw = cfg.get("gateway", {})
+    platforms = []
+    if gw.get("telegram_token"):
+        platforms.append("telegram")
+    if gw.get("discord_token"):
+        platforms.append("discord")
+    if gw.get("slack_bot_token"):
+        platforms.append("slack")
+    if gw.get("feishu_app_id"):
+        platforms.append("feishu")
+    return {"platforms": platforms}
+
+
+@app.post("/gateway/config", dependencies=[Depends(require_token)])
+async def save_gateway_config(body: GatewayConfigIn) -> dict:
+    cfg = _load_agent_yaml()
+    gw = cfg.setdefault("gateway", {})
+    if body.telegram_token is not None:
+        gw["telegram_token"] = body.telegram_token
+    if body.telegram_allowed_users is not None:
+        gw["telegram_allowed_users"] = body.telegram_allowed_users
+    if body.discord_token is not None:
+        gw["discord_token"] = body.discord_token
+    if body.slack_bot_token is not None:
+        gw["slack_bot_token"] = body.slack_bot_token
+    if body.slack_app_token is not None:
+        gw["slack_app_token"] = body.slack_app_token
+    if body.feishu_app_id is not None:
+        gw["feishu_app_id"] = body.feishu_app_id
+    if body.feishu_app_secret is not None:
+        gw["feishu_app_secret"] = body.feishu_app_secret
+    if body.feishu_verification_token is not None:
+        gw["feishu_verification_token"] = body.feishu_verification_token
+    if body.feishu_encrypt_key is not None:
+        gw["feishu_encrypt_key"] = body.feishu_encrypt_key
+    _save_agent_yaml(cfg)
+
+    env_path = AGENT_STATE_DIR / ".env"
+    env_lines: list[str] = []
+    if body.telegram_token:
+        env_lines.append(f"TELEGRAM_BOT_TOKEN={body.telegram_token}")
+    if body.telegram_allowed_users:
+        env_lines.append(f"TELEGRAM_ALLOWED_USERS={body.telegram_allowed_users}")
+    if body.discord_token:
+        env_lines.append(f"DISCORD_BOT_TOKEN={body.discord_token}")
+    if body.slack_bot_token:
+        env_lines.append(f"SLACK_BOT_TOKEN={body.slack_bot_token}")
+    if body.slack_app_token:
+        env_lines.append(f"SLACK_APP_TOKEN={body.slack_app_token}")
+    if body.feishu_app_id:
+        env_lines.append(f"FEISHU_APP_ID={body.feishu_app_id}")
+    if body.feishu_app_secret:
+        env_lines.append(f"FEISHU_APP_SECRET={body.feishu_app_secret}")
+    if body.feishu_verification_token:
+        env_lines.append(f"FEISHU_VERIFICATION_TOKEN={body.feishu_verification_token}")
+    if body.feishu_encrypt_key:
+        env_lines.append(f"FEISHU_ENCRYPT_KEY={body.feishu_encrypt_key}")
+
+    if env_lines:
+        existing = ""
+        if env_path.exists():
+            existing = env_path.read_text("utf-8")
+        for line in env_lines:
+            key = line.split("=", 1)[0]
+            import re as _re
+            existing = _re.sub(rf"^{key}=.*$", "", existing, flags=_re.MULTILINE)
+        existing = existing.strip()
+        if existing:
+            existing += "\n"
+        existing += "\n".join(env_lines) + "\n"
+        AGENT_STATE_DIR.mkdir(parents=True, exist_ok=True)
+        env_path.write_text(existing, "utf-8")
+
+    return {"ok": True}

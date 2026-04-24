@@ -1,0 +1,296 @@
+/* ══════════════════════════════════════════════════════════
+   BITIDEA Desktop · Global Component Styles
+   Complements tokens.css. Ports classes from the landing page:
+     .btn / .btn-primary / .btn-secondary
+     .terminal / .terminal-header / .terminal-body
+     .hero-badge / .pulse-dot
+     .bracket (corner decorations)
+   ══════════════════════════════════════════════════════════ */
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn {
+  padding: 12px 22px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: var(--r-md);
+  transition: all var(--t);
+  cursor: pointer;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-sm {
+  padding: 8px 14px;
+  font-size: 12px;
+  gap: 8px;
+}
+
+.btn-primary {
+  background: var(--grad-brand);
+  color: var(--bg);
+  font-weight: 600;
+  border-color: transparent;
+}
+.btn-primary:not(:disabled):hover {
+  box-shadow: 0 4px 16px rgba(74, 158, 255, 0.25);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: var(--panel);
+  color: var(--ink);
+  border-color: var(--panel-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.btn-secondary:not(:disabled):hover {
+  border-color: var(--accent);
+  color: var(--accent-2);
+}
+
+.btn-danger {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.btn .arrow {
+  display: inline-block;
+  transition: transform var(--t);
+}
+.btn:not(:disabled):hover .arrow {
+  transform: translateX(3px);
+}
+
+/* ── Terminal panel ──────────────────────────────────────── */
+.terminal {
+  width: 100%;
+  background: rgba(5, 10, 20, 0.9);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-xl);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 8px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(74, 158, 255, 0.1);
+  overflow: hidden;
+  position: relative;
+}
+.terminal::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(125, 211, 252, 0.35), transparent);
+  opacity: 0.6;
+}
+.terminal-header {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--panel-border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.terminal-dots { display: flex; gap: 6px; }
+.terminal-dots span {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+}
+.terminal-dots span:nth-child(1) { background: #ff5f57; }
+.terminal-dots span:nth-child(2) { background: #febc2e; }
+.terminal-dots span:nth-child(3) { background: #28c840; }
+.terminal-title {
+  margin-left: 12px;
+  letter-spacing: 0.05em;
+}
+.terminal-body {
+  padding: 20px 24px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.8;
+  text-align: left;
+  overflow-x: auto;
+}
+
+/* ── Badges / pulse-dot ──────────────────────────────────── */
+.hero-badge,
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-pill);
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+.badge-accent { color: var(--accent-2); border-color: var(--panel-border-strong); }
+.badge-success { color: var(--success); border-color: rgba(34, 197, 94, 0.35); }
+.badge-danger { color: var(--danger); border-color: rgba(239, 68, 68, 0.35); }
+.badge-warning { color: var(--warning); border-color: rgba(245, 158, 11, 0.35); }
+
+.pulse-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  box-shadow: 0 0 8px var(--accent-2);
+  animation: pulse 2s infinite;
+  flex-shrink: 0;
+}
+.pulse-dot.success { background: var(--success); box-shadow: 0 0 8px var(--success); }
+.pulse-dot.danger  { background: var(--danger);  box-shadow: 0 0 8px var(--danger); }
+.pulse-dot.warning { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
+
+/* ── Corner brackets (technical accent) ──────────────────── */
+.bracket {
+  display: none;
+}
+
+/* ── Scanline overlay (subtle CRT vibe) ──────────────────── */
+.scanline {
+  display: none;
+}
+
+/* ── Language switcher (EN / 中) ─────────────────────────── */
+.lang-switch {
+  display: inline-flex;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+.lang-switch button {
+  background: transparent;
+  border: none;
+  color: var(--ink-dim);
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all var(--t);
+  font-family: inherit;
+}
+.lang-switch button.active {
+  background: var(--accent);
+  color: var(--bg);
+}
+.lang-switch button:not(.active):hover { color: var(--accent-2); }
+
+/* ── Generic reveal-on-mount ─────────────────────────────── */
+.reveal { animation: fadeIn 0.5s ease both; }
+
+/* ── Inputs ──────────────────────────────────────────────── */
+.input,
+.textarea,
+.select {
+  width: 100%;
+  background: rgba(15, 25, 50, 0.3);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-md);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  padding: 12px 14px;
+  transition: border-color var(--t), box-shadow var(--t);
+  outline: none;
+}
+.input.mono,
+.textarea.mono { font-family: var(--font-mono); }
+.input:focus,
+.textarea:focus,
+.select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.15);
+}
+.input::placeholder,
+.textarea::placeholder { color: var(--ink-faint); }
+
+.textarea { resize: none; line-height: 1.55; }
+
+/* ── Label ────────────────────────────────────────────────── */
+.label {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  margin-bottom: var(--s-2);
+}
+
+/* ── Code / markdown tweaks for highlight.js ─────────────── */
+.md pre {
+  background: rgba(15, 25, 50, 0.25);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  margin: 10px 0;
+}
+.md code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  background: rgba(74, 158, 255, 0.06);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-xs);
+  padding: 1px 5px;
+  color: var(--accent-2);
+}
+.md pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+}
+.md p { margin: 8px 0; }
+.md ul, .md ol { margin: 8px 0 8px 22px; }
+.md h1, .md h2, .md h3 { margin: 14px 0 8px; line-height: 1.25; }
+.md a { color: var(--accent-2); text-decoration: underline; }
+.md blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 12px;
+  color: var(--ink-dim);
+  margin: 10px 0;
+}
+
+/* ── Boot splash / error ─────────────────────────────────── */
+.boot-splash {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  animation: fadeIn 0.4s ease both;
+}
+
+/* ── Utility ─────────────────────────────────────────────── */
+.stack { display: flex; flex-direction: column; }
+.row   { display: flex; align-items: center; }
+.grow  { flex: 1 1 auto; min-width: 0; }
+.mono  { font-family: var(--font-mono); }
+.dim   { color: var(--ink-dim); }
+.faint { color: var(--ink-faint); }
+.center { text-align: center; }
+.hidden { display: none !important; }

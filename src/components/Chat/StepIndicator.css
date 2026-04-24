@@ -2,21 +2,44 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 2px 8px;
-  border: 1px solid var(--panel-border);
-  border-radius: var(--r-pill);
-  background: rgba(10, 14, 29, 0.55);
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.16em;
-  color: var(--ink-dim);
+  padding: 6px 12px;
+  border: 1px solid rgba(126, 182, 255, 0.12);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(18, 28, 54, 0.74), rgba(10, 16, 34, 0.86));
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  font-family: var(--font-sans);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(210, 227, 252, 0.66);
   white-space: nowrap;
 }
+
 .step-pip-active {
-  border-color: var(--panel-border-strong);
-  color: var(--ink);
+  border-color: rgba(125, 211, 252, 0.2);
+  color: #eef6ff;
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.18),
+    0 0 18px rgba(74, 158, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-.step-label { color: var(--ink-faint); font-weight: 500; }
-.step-count { color: var(--accent-2); }
-.step-pips { letter-spacing: 0.08em; color: var(--accent); }
+.step-label {
+  color: rgba(192, 210, 238, 0.48);
+  font-weight: 600;
+}
+
+.step-count {
+  color: #dff3ff;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.step-pips {
+  color: #7ecbff;
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 8px rgba(125, 211, 252, 0.22);
+  font-size: 9px;
+}

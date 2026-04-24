@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ToolEvent } from '../../types';
 import { useCountdown } from './useCountdown';
 import { renderToolPreviewLine } from './renderToolPreview';
@@ -9,9 +9,12 @@ interface Props {
 }
 
 export default function ToolCard({ tool }: Props) {
+  const normalizedToolName = (tool.name ?? '').toLowerCase();
+  const isSkillView = normalizedToolName === 'skill_view';
   const isRunning = tool.result === undefined;
   const ok = tool.result?.ok ?? true;
   const [expanded, setExpanded] = useState(true);
+  const outputRef = useRef<HTMLPreElement | null>(null);
 
   const statusGlyph = isRunning ? '◇' : ok ? '✓' : '✕';
   const statusClass = isRunning ? 'running' : ok ? 'ok' : 'fail';
@@ -26,6 +29,16 @@ export default function ToolCard({ tool }: Props) {
 
   const remaining = useCountdown(tool.allowed_until_ms);
   const showBadge = tool.auto_allowed === true;
+  const hasArgs = Object.keys(tool.args).length > 0;
+  const hasOutput = tool.output.trim().length > 0;
+  const skillDisplayName = isSkillView
+    ? renderToolPreviewLine(tool.name, tool.args)
+    : '';
+
+  useEffect(() => {
+    if (!isRunning || !outputRef.current) return;
+    outputRef.current.scrollTop = outputRef.current.scrollHeight;
+  }, [tool.output, isRunning]);
 
   return (
     <div className={`tool-card tool-${statusClass}`}>
@@ -55,10 +68,31 @@ export default function ToolCard({ tool }: Props) {
 
       {expanded && (
         <div className="tool-body">
-          {Object.keys(tool.args).length > 0 && (
-            <pre className="tool-args">{JSON.stringify(tool.args, null, 2)}</pre>
+          {hasArgs && (
+            <pre className="tool-args">
+              {isSkillView && skillDisplayName
+                ? skillDisplayName
+                : JSON.stringify(tool.args, null, 2)}
+            </pre>
           )}
-          {tool.output && <pre className="tool-output">{tool.output}</pre>}
+          {(hasOutput || isRunning) && (
+            <div className={`tool-stream ${isRunning ? 'tool-stream-live' : ''}`}>
+              <div className="tool-stream-head">
+                <span className="tool-stream-label">
+                  {isRunning ? 'LIVE OUTPUT' : 'OUTPUT'}
+                </span>
+                {isRunning && <span className="tool-stream-state">streaming</span>}
+              </div>
+              <pre
+                ref={outputRef}
+                className={`tool-output ${!hasOutput ? 'tool-output-empty' : ''}`}
+                aria-live={isRunning ? 'polite' : undefined}
+              >
+                {hasOutput ? tool.output : '等待工具输出...'}
+                {isRunning && <span className="tool-output-caret" aria-hidden>▍</span>}
+              </pre>
+            </div>
+          )}
           {tool.result && (
             <div className={`tool-result tool-result-${ok ? 'ok' : 'fail'}`}>
               <span className="tool-result-label">

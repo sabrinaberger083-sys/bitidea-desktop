@@ -40,7 +40,7 @@ const COPY = {
   },
 };
 
-const DEFAULT_MODELS: Record<Provider, string[]> = {
+const DEFAULT_MODELS: Partial<Record<Provider, string[]>> = {
   openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'o4-mini'],
   openrouter: [
     'anthropic/claude-3.5-sonnet',
@@ -53,6 +53,16 @@ const DEFAULT_MODELS: Record<Provider, string[]> = {
     'claude-opus-4-latest',
     'claude-3-5-haiku-latest',
   ],
+  gemini: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
+  zai: ['glm-4-plus', 'glm-4-flash'],
+  kimi: ['kimi-k2.5', 'moonshot-v1-8k'],
+  minimax: ['MiniMax-Text-01', 'abab6.5s-chat'],
+  xiaomi: ['mimo-v2-pro', 'mimo-v2-flash'],
+  huggingface: ['Qwen/Qwen3-235B-A22B', 'meta-llama/Llama-3.3-70B-Instruct'],
+  arcee: ['trinity-large', 'trinity-mini'],
+  'ollama-cloud': ['llama3.1', 'qwen3'],
+  'opencode-zen': ['gpt-4o', 'claude-sonnet-4'],
+  'opencode-go': ['glm-5', 'kimi-k2.5'],
   custom: ['gpt-4o-mini'],
 };
 
@@ -76,7 +86,7 @@ export default function StepApiKey({
   onComplete,
 }: Props) {
   const L = COPY[lang];
-  const models = useMemo(() => DEFAULT_MODELS[provider], [provider]);
+  const models = useMemo(() => DEFAULT_MODELS[provider] ?? ['gpt-4o-mini'], [provider]);
 
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState<string>(models[0]);
@@ -97,7 +107,7 @@ export default function StepApiKey({
         provider,
         model,
         api_key: apiKey,
-        base_url: provider === 'custom' ? baseUrl : undefined,
+        base_url: baseUrl || undefined,
       });
       setTest(res.ok ? { kind: 'ok' } : { kind: 'err', msg: res.error || L.bad });
     } catch (e) {
@@ -113,7 +123,7 @@ export default function StepApiKey({
         provider,
         model,
         api_key: apiKey,
-        base_url: provider === 'custom' ? baseUrl : undefined,
+        base_url: baseUrl || undefined,
       });
       onComplete();
     } catch (e) {

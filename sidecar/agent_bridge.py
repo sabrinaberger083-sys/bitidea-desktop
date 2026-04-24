@@ -60,10 +60,15 @@ Deviations from the briefing
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import json
 import logging
 import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -275,6 +280,10 @@ class ApprovalRegistry:
 
 # Process-wide singleton.
 APPROVALS = ApprovalRegistry()
+_VISION_ANALYSIS_CACHE: Dict[str, str] = {}
+_VISION_CACHE_LOCK = threading.Lock()
+_SYNCED_SKILL_HOMES: set[str] = set()
+_SYNCED_SKILL_HOMES_LOCK = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -309,27 +318,58 @@ def _agent_state_dir() -> str:
     return home
 
 
+def _sync_agent_skills_once(bitidea_home: str) -> None:
+    """Mirror CLI/gateway startup behavior for Desktop's isolated BITIDEA_HOME.
+
+    The Hermes/bitidea-agent CLI and gateway call ``sync_skills()`` on startup,
+    but the Desktop sidecar uses its own isolated ``BITIDEA_HOME`` and never did
+    that sync. Result: ``skills_list`` saw an empty ``~/.bitidea-desktop/.../skills``
+    directory even though the backend ships bundled skills.
+    """
+    with _SYNCED_SKILL_HOMES_LOCK:
+        if bitidea_home in _SYNCED_SKILL_HOMES:
+            return
+
+    try:
+        from tools.skills_sync import sync_skills
+
+        result = sync_skills(quiet=True)
+        copied = len(result.get("copied") or [])
+        updated = len(result.get("updated") or [])
+        if copied or updated:
+            logger.info(
+                "Synced bundled skills into %s (+%d / ↑%d)",
+                bitidea_home,
+                copied,
+                updated,
+            )
+    except Exception:
+        logger.exception("failed to sync bundled skills for %s", bitidea_home)
+        return
+
+    with _SYNCED_SKILL_HOMES_LOCK:
+        _SYNCED_SKILL_HOMES.add(bitidea_home)
+
+
 def _infer_base_url(provider: str, base_url: Optional[str]) -> str:
-    if provider == "openai":
-        return "https://api.openai.com"
-    if provider == "openrouter":
-        return "https://openrouter.ai/api"
-    if provider == "anthropic":
-        return "https://api.anthropic.com"
-    if provider == "custom":
-        if not base_url:
-            raise ValueError("custom provider requires base_url")
+    if base_url:
         return base_url.rstrip("/")
+    from .server import _PROVIDER_BASE_URLS
+    url = _PROVIDER_BASE_URLS.get(provider)
+    if url:
+        return url
+    if provider == "custom":
+        raise ValueError("custom provider requires base_url")
     raise ValueError(f"unknown provider: {provider!r}")
 
 
 def _openai_compatible_base(provider: str, base_url: str) -> str:
-    """bitidea-agent expects the base_url to already include the ``/v1`` path
+    """bitidea-agent expects the base_url to already include a versioned path
     for OpenAI-style endpoints. Normalise here."""
+    import re as _re
     url = base_url.rstrip("/")
-    if provider in ("openai", "openrouter", "custom"):
-        if not url.endswith("/v1"):
-            url = f"{url}/v1"
+    if provider != "anthropic" and not _re.search(r"/v\d", url):
+        url = f"{url}/v1"
     return url
 
 
@@ -349,6 +389,7 @@ class AgentRunner:
     # Agent loops on an executor thread — 5 minutes upper bound so a hung
     # provider never leaks the thread indefinitely.
     HARD_TIMEOUT_SECONDS = 600.0
+    IMAGE_ANALYSIS_TIMEOUT_SECONDS = 180.0
 
     def __init__(
         self,
@@ -369,13 +410,343 @@ class AgentRunner:
         )
         self.messages = messages
         self.project_path = project_path
-        self.system_prompt = system_prompt
+        self.system_prompt = system_prompt or (
+            "你是 Bitidea Agent，由小小思路信息科技有限公司开发的智能 AI 助手。"
+            "当用户使用中文时，始终用流畅自然的中文回复，不要出现截断、乱码或不完整的句子。"
+            "回答要准确、完整、有条理。"
+        )
 
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._queue: Optional[asyncio.Queue[bytes]] = None
         self._sentinel = object()
         self._session_key = f"bitidea-desktop:{uuid.uuid4().hex[:16]}"
         self._finished = threading.Event()
+
+    @staticmethod
+    def _content_has_image_parts(content: Any) -> bool:
+        if not isinstance(content, list):
+            return False
+        for part in content:
+            if isinstance(part, dict) and part.get("type") in {"image_url", "input_image"}:
+                return True
+        return False
+
+    @staticmethod
+    def _count_image_parts(content: Any) -> int:
+        if not isinstance(content, list):
+            return 0
+        count = 0
+        for part in content:
+            if isinstance(part, dict) and part.get("type") in {"image_url", "input_image"}:
+                count += 1
+        return count
+
+    @staticmethod
+    def _collapse_content_to_text(content: Any) -> str:
+        if isinstance(content, str):
+            return content.strip()
+        if not isinstance(content, list):
+            return str(content or "").strip()
+
+        text_parts: List[str] = []
+        for part in content:
+            if isinstance(part, str):
+                text = part.strip()
+            elif isinstance(part, dict) and part.get("type") in {"text", "input_text"}:
+                text = str(part.get("text", "") or "").strip()
+            else:
+                text = ""
+            if text:
+                text_parts.append(text)
+        return "\n".join(text_parts).strip()
+
+    @staticmethod
+    def _materialize_data_url_for_vision(image_url: str) -> tuple[str, Optional[Path]]:
+        header, _, data = str(image_url or "").partition(",")
+        mime = "image/jpeg"
+        if header.startswith("data:"):
+            mime_part = header[len("data:"):].split(";", 1)[0].strip()
+            if mime_part.startswith("image/"):
+                mime = mime_part
+        suffix = {
+            "image/png": ".png",
+            "image/gif": ".gif",
+            "image/webp": ".webp",
+            "image/jpeg": ".jpg",
+            "image/jpg": ".jpg",
+        }.get(mime, ".jpg")
+        tmp = tempfile.NamedTemporaryFile(
+            prefix="bitidea_desktop_image_",
+            suffix=suffix,
+            delete=False,
+        )
+        with tmp:
+            tmp.write(base64.b64decode(data))
+        path = Path(tmp.name)
+        return str(path), path
+
+    @staticmethod
+    def _vision_home_candidates() -> List[str]:
+        candidates: List[str] = []
+        seen: set[str] = set()
+        for raw in (os.environ.get("BITIDEA_HOME"), os.path.expanduser("~/.bitidea")):
+            if not raw:
+                continue
+            home = str(Path(raw).expanduser())
+            if home in seen:
+                continue
+            seen.add(home)
+            home_path = Path(home)
+            if not home_path.exists():
+                continue
+            if (home_path / "config.yaml").exists() or (home_path / "auth.json").exists():
+                candidates.append(home)
+        return candidates
+
+    def _run_vision_analysis_subprocess(
+        self,
+        *,
+        image_source: str,
+        bitidea_home: str,
+        prompt: str,
+    ) -> Dict[str, Any]:
+        script = (
+            "import asyncio, sys\n"
+            "from tools.vision_tools import vision_analyze_tool\n"
+            "async def _main():\n"
+            "    result = await vision_analyze_tool(sys.argv[1], sys.argv[2])\n"
+            "    print(result)\n"
+            "asyncio.run(_main())\n"
+        )
+        env = dict(os.environ)
+        env["BITIDEA_HOME"] = bitidea_home
+        completed = subprocess.run(
+            [sys.executable, "-c", script, image_source, prompt],
+            capture_output=True,
+            text=True,
+            timeout=self.IMAGE_ANALYSIS_TIMEOUT_SECONDS,
+            env=env,
+        )
+        stdout = (completed.stdout or "").strip()
+        stderr = (completed.stderr or "").strip()
+        if completed.returncode != 0:
+            detail = stderr or stdout or f"vision helper exited with status {completed.returncode}"
+            raise RuntimeError(detail[:2000])
+        if not stdout:
+            raise RuntimeError(stderr or "vision helper returned no output")
+
+        start = stdout.find("{")
+        end = stdout.rfind("}")
+        payload = stdout[start:end + 1] if start != -1 and end != -1 and end > start else stdout
+        try:
+            parsed = json.loads(payload)
+        except json.JSONDecodeError as exc:
+            snippet = payload[:1000] if payload else stdout[:1000]
+            raise RuntimeError(f"vision helper returned invalid JSON: {exc}: {snippet}") from exc
+        if not isinstance(parsed, dict):
+            raise RuntimeError("vision helper returned a non-object payload")
+        return parsed
+
+    def _describe_image_with_vision(
+        self,
+        image_source: str,
+        *,
+        cache_key_source: Optional[str] = None,
+    ) -> tuple[str, str]:
+        cache_source = cache_key_source if cache_key_source is not None else image_source
+        cache_key = hashlib.sha256(str(cache_source or "").encode("utf-8")).hexdigest()
+        with _VISION_CACHE_LOCK:
+            cached = _VISION_ANALYSIS_CACHE.get(cache_key)
+        if cached:
+            return cached, ""
+
+        prompt = (
+            "Describe everything visible in this image in thorough detail. "
+            "Include any text, code, UI, data, objects, people, layout, colors, "
+            "and any other notable visual information."
+        )
+        errors: List[str] = []
+        for bitidea_home in self._vision_home_candidates():
+            for attempt in range(2):
+                try:
+                    result = self._run_vision_analysis_subprocess(
+                        image_source=image_source,
+                        bitidea_home=bitidea_home,
+                        prompt=prompt,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    error_text = str(exc).strip() or "vision analysis failed"
+                    if attempt == 0 and "connection error" in error_text.lower():
+                        continue
+                    errors.append(f"{Path(bitidea_home).name}: {error_text}")
+                    break
+
+                analysis = str(result.get("analysis") or "").strip()
+                if result.get("success") and analysis:
+                    with _VISION_CACHE_LOCK:
+                        _VISION_ANALYSIS_CACHE[cache_key] = analysis
+                    return analysis, ""
+
+                error_text = (
+                    analysis
+                    or str(result.get("error") or "").strip()
+                    or "vision analysis failed"
+                )
+                if attempt == 0 and "connection error" in error_text.lower():
+                    continue
+                errors.append(f"{Path(bitidea_home).name}: {error_text}")
+                break
+
+        if not errors:
+            errors.append("no configured vision backend available")
+        return "", "; ".join(errors)
+
+    def _preprocess_multimodal_content(
+        self,
+        content: Any,
+        *,
+        role: str,
+        image_offset: int = 0,
+        total_images: int = 0,
+    ) -> tuple[str, int]:
+        if not self._content_has_image_parts(content):
+            return self._collapse_content_to_text(content), 0
+
+        role_label = {
+            "assistant": "助手",
+            "tool": "工具结果",
+        }.get(role, "用户")
+        text_parts: List[str] = []
+        image_notes: List[str] = []
+        processed_images = 0
+        cleanup_paths: List[Path] = []
+
+        try:
+            for part in content:
+                if isinstance(part, str):
+                    text = part.strip()
+                    if text:
+                        text_parts.append(text)
+                    continue
+                if not isinstance(part, dict):
+                    continue
+
+                ptype = part.get("type")
+                if ptype in {"text", "input_text"}:
+                    text = str(part.get("text", "") or "").strip()
+                    if text:
+                        text_parts.append(text)
+                    continue
+
+                if ptype not in {"image_url", "input_image"}:
+                    text = str(part.get("text", "") or "").strip()
+                    if text:
+                        text_parts.append(text)
+                    continue
+
+                image_data = part.get("image_url", {})
+                image_source = (
+                    image_data.get("url", "")
+                    if isinstance(image_data, dict)
+                    else str(image_data or "")
+                )
+                processed_images += 1
+                current_index = image_offset + processed_images
+                if total_images > 0:
+                    self._push("status", {"text": f"正在识别图片 {current_index}/{total_images}..."})
+                else:
+                    self._push("status", {"text": "正在识别图片..."})
+
+                if not image_source:
+                    image_notes.append(f"[{role_label}附带了一张图片，但没有拿到可读取的图片源。]")
+                    continue
+
+                vision_source = image_source
+                cleanup_path: Optional[Path] = None
+                if vision_source.startswith("data:"):
+                    try:
+                        vision_source, cleanup_path = self._materialize_data_url_for_vision(
+                            vision_source
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        image_notes.append(
+                            f"[{role_label}附带了一张图片，但图片数据解析失败：{exc}。"
+                            "请继续基于文字上下文回答，不要尝试把 data URL 当网页打开。]"
+                        )
+                        continue
+                    if cleanup_path is not None:
+                        cleanup_paths.append(cleanup_path)
+
+                analysis, error_text = self._describe_image_with_vision(
+                    vision_source,
+                    cache_key_source=image_source,
+                )
+                if analysis:
+                    note = f"[{role_label}附带了一张图片，图片内容如下：\n{analysis}]"
+                    if vision_source and not image_source.startswith("data:"):
+                        note += (
+                            f"\n[如果需要进一步查看，可使用 vision_analyze，image_url: {vision_source}]"
+                        )
+                    image_notes.append(note)
+                else:
+                    image_notes.append(
+                        f"[{role_label}附带了一张图片，但图片识别失败：{error_text or '未知错误'}。"
+                        "请继续基于文字上下文回答，不要尝试把 data URL 当网页打开。]"
+                    )
+        finally:
+            for cleanup_path in cleanup_paths:
+                try:
+                    cleanup_path.unlink()
+                except OSError:
+                    pass
+
+        prefix = "\n\n".join(note for note in image_notes if note).strip()
+        suffix = "\n".join(text for text in text_parts if text).strip()
+        if prefix and suffix:
+            return f"{prefix}\n\n{suffix}", processed_images
+        if prefix:
+            return prefix, processed_images
+        if suffix:
+            return suffix, processed_images
+        return f"[{role_label}附带了一张图片。]", processed_images
+
+    def _preprocess_messages_for_image_fallback(
+        self,
+        messages: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        if self.provider != "custom":
+            return messages
+
+        total_images = sum(
+            self._count_image_parts(msg.get("content"))
+            for msg in messages
+            if isinstance(msg, dict)
+        )
+        if total_images == 0:
+            return messages
+
+        processed_images = 0
+        transformed: List[Dict[str, Any]] = []
+        try:
+            for msg in messages:
+                if not isinstance(msg, dict):
+                    transformed.append(msg)
+                    continue
+                content = msg.get("content")
+                if not self._content_has_image_parts(content):
+                    transformed.append(msg)
+                    continue
+                rewritten, consumed = self._preprocess_multimodal_content(
+                    content,
+                    role=str(msg.get("role", "user") or "user"),
+                    image_offset=processed_images,
+                    total_images=total_images,
+                )
+                processed_images += consumed
+                transformed.append({**msg, "content": rewritten})
+            return transformed
+        finally:
+            self._push("status", {"text": ""})
 
     # ---- callback factory --------------------------------------------------
 
@@ -398,6 +769,7 @@ class AgentRunner:
         event into the asyncio queue.
         """
         tool_ids: Dict[str, str] = {}
+        reasoning_streamed = False
 
         def stream_delta(delta: Any) -> None:
             # AIAgent sends None at end-of-stream — ignore those.
@@ -411,6 +783,14 @@ class AgentRunner:
             args: Any = None,
             **_kwargs: Any,
         ) -> None:
+            nonlocal reasoning_streamed
+            if event_type == "reasoning.available":
+                text = (preview or "").strip()
+                if text and not reasoning_streamed:
+                    reasoning_streamed = True
+                    self._push("status", {"text": ""})
+                    self._push("thinking", {"text": text})
+                return
             if event_type != "tool.started":
                 return
             if isinstance(args, str):
@@ -450,8 +830,21 @@ class AgentRunner:
             self._push("tool_start", frame)
 
         def thinking(text: str) -> None:
-            if text:
-                self._push("thinking", {"text": text})
+            # ``thinking_callback`` in bitidea-agent is a kawaii placeholder
+            # spinner ("formulating...", "pondering..."), not the model's real
+            # reasoning text. Surface it as ephemeral status instead of mixing
+            # it into the THINKING panel.
+            if reasoning_streamed and not text:
+                return
+            self._push("status", {"text": str(text or "")})
+
+        def reasoning(text: str) -> None:
+            nonlocal reasoning_streamed
+            if not text:
+                return
+            reasoning_streamed = True
+            self._push("status", {"text": ""})
+            self._push("thinking", {"text": text})
 
         def step(api_call_count: int, prev_tools: Any = None) -> None:
             # We don't know "total" steps ahead of time — pass n and let the UI
@@ -498,6 +891,7 @@ class AgentRunner:
             stream_delta_callback=stream_delta,
             tool_progress_callback=tool_progress,
             thinking_callback=thinking,
+            reasoning_callback=reasoning,
             step_callback=step,
             status_callback=status,
         )
@@ -580,7 +974,10 @@ class AgentRunner:
 
             # Route bitidea-agent state away from ~/.bitidea/ to keep Desktop
             # isolated from the standalone CLI.
-            os.environ["BITIDEA_HOME"] = _agent_state_dir()
+            bitidea_home = _agent_state_dir()
+            os.environ["BITIDEA_HOME"] = bitidea_home
+            _sync_agent_skills_once(bitidea_home)
+            prepared_messages = self._preprocess_messages_for_image_fallback(self.messages)
             # Engage gateway-style approval routing so dangerous commands ask
             # us instead of prompting on stdin.
             os.environ["BITIDEA_GATEWAY_SESSION"] = self._session_key
@@ -598,9 +995,7 @@ class AgentRunner:
 
             try:
                 cb = self._make_callbacks()
-                agent_provider = (
-                    "anthropic" if self.provider == "anthropic" else self.provider
-                )
+                agent_provider = self.provider
                 # AIAgent accepts (base_url, api_key, provider, model, ...).
                 # All toolsets enabled (enabled_toolsets=None).
                 agent = AIAgent(
@@ -612,13 +1007,15 @@ class AgentRunner:
                     skip_context_files=True,
                     save_trajectories=False,
                     session_id=self._session_key,
+                    platform="desktop",
+                    gateway_session_key=self._session_key,
                     **cb,
                 )
                 # Drain incoming history — last message is the new user prompt,
                 # everything before is conversation context.
-                if not self.messages:
+                if not prepared_messages:
                     raise ValueError("empty messages list")
-                *history, last = self.messages
+                *history, last = prepared_messages
                 if last["role"] != "user":
                     raise ValueError("last message must be role=user")
                 # Pass the last user message content directly to the agent.

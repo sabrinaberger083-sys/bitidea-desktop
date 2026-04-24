@@ -3,13 +3,32 @@ import Button from '../common/Button';
 import LangSwitch from '../common/LangSwitch';
 import McpSettings from './McpSettings';
 import RoutinesSettings from './RoutinesSettings';
+import MemorySettings from './MemorySettings';
+import TerminalSettings from './TerminalSettings';
+import VoiceSettings from './VoiceSettings';
+import GatewaySettings from './GatewaySettings';
 import type { Config, Lang, Provider } from '../../types';
 import { saveConfig } from '../../lib/sidecar';
 import { getPresetsForProvider } from '../../lib/modelPresets';
 import { SETTINGS_COPY } from './copy';
 import './SettingsPanel.css';
 
-const PROVIDERS: Provider[] = ['openai', 'openrouter', 'anthropic', 'custom'];
+const PROVIDERS: { id: Provider; label: string }[] = [
+  { id: 'openrouter', label: 'OpenRouter' },
+  { id: 'openai', label: 'OpenAI' },
+  { id: 'anthropic', label: 'Anthropic' },
+  { id: 'gemini', label: 'Google Gemini' },
+  { id: 'zai', label: 'z.ai / GLM' },
+  { id: 'kimi', label: 'Kimi / Moonshot' },
+  { id: 'minimax', label: 'MiniMax' },
+  { id: 'xiaomi', label: 'Xiaomi MiMo' },
+  { id: 'huggingface', label: 'Hugging Face' },
+  { id: 'arcee', label: 'Arcee AI' },
+  { id: 'ollama-cloud', label: 'Ollama Cloud' },
+  { id: 'opencode-zen', label: 'OpenCode Zen' },
+  { id: 'opencode-go', label: 'OpenCode Go' },
+  { id: 'custom', label: 'Custom' },
+];
 const VERSION = '0.1.0';
 const GITHUB_URL = 'https://github.com/bitidea/bitidea-agent';
 
@@ -70,12 +89,12 @@ export default function SettingsPanel({
         provider,
         model,
         api_key: rotatingKey ? newKey : undefined,
-        base_url: provider === 'custom' ? baseUrl : undefined,
+        base_url: baseUrl || undefined,
       });
       onConfigChanged({
         provider,
         model,
-        base_url: provider === 'custom' ? baseUrl : undefined,
+        base_url: baseUrl || undefined,
         has_api_key: rotatingKey || !!config?.has_api_key,
       });
       onClose();
@@ -125,7 +144,7 @@ export default function SettingsPanel({
                 onChange={(e) => setProvider(e.target.value as Provider)}
               >
                 {PROVIDERS.map((p) => (
-                  <option key={p} value={p}>{p}</option>
+                  <option key={p.id} value={p.id}>{p.label}</option>
                 ))}
               </select>
             </div>
@@ -167,13 +186,14 @@ export default function SettingsPanel({
               )}
             </div>
 
-            {provider === 'custom' && (
+            {(provider === 'custom' || baseUrl) && (
               <div className="field">
-                <label className="label">{L.base}</label>
+                <label className="label">{L.base} {provider !== 'custom' && <span className="dim" style={{ fontSize: 11 }}>({L.base_optional})</span>}</label>
                 <input
                   className="input mono"
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
+                  placeholder={provider === 'custom' ? 'https://...' : L.base_default}
                   spellCheck={false}
                 />
               </div>
@@ -228,6 +248,14 @@ export default function SettingsPanel({
           <McpSettings lang={lang} />
 
           <RoutinesSettings lang={lang} />
+
+          <MemorySettings lang={lang} />
+
+          <TerminalSettings lang={lang} />
+
+          <VoiceSettings lang={lang} />
+
+          <GatewaySettings lang={lang} />
 
           <section className="settings-section">
             <div className="label">{L.section_appearance}</div>

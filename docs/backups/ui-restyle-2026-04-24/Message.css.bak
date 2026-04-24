@@ -1,0 +1,185 @@
+.msg {
+  display: flex;
+  gap: 12px;
+  animation: fadeIn 0.3s ease both;
+}
+.msg-user {
+  flex-direction: row-reverse;
+}
+
+.msg-avatar {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--panel-border-strong);
+  background: var(--panel);
+  color: var(--accent-2);
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-shadow: 0 0 8px var(--accent-2);
+}
+
+.msg-body {
+  max-width: min(760px, calc(100% - 44px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.msg-bubble {
+  padding: 12px 16px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--panel-border);
+  font-size: 14.5px;
+  line-height: 1.65;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  position: relative;
+}
+.bubble-user {
+  background: linear-gradient(
+    135deg,
+    rgba(74, 158, 255, 0.14) 0%,
+    rgba(125, 211, 252, 0.04) 100%
+  );
+  border-color: rgba(74, 158, 255, 0.2);
+  color: var(--ink);
+}
+.bubble-asst {
+  background: var(--panel);
+  color: var(--ink);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.msg-plain {
+  white-space: pre-wrap;
+  font-family: var(--font-sans);
+}
+
+.msg-caret {
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--accent-2);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.msg-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Meta row above assistant bubble (step pip + status line) ── */
+.msg-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-height: 20px;
+}
+
+/* ── Event stream inside an assistant bubble ───────────────── */
+.msg-events {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.msg-event {
+  animation: fadeIn 0.22s ease both;
+}
+.msg-event-text {
+  /* Leave the markdown block to its own rhythm — no extra padding. */
+}
+
+/* ── Artifact preview trigger on renderable code blocks ───── */
+
+.msg-code-wrap {
+  position: relative;
+}
+
+.msg-code-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  background: rgba(120, 180, 255, 0.04);
+  border: 1px solid var(--panel-border);
+  border-bottom: none;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+}
+
+.msg-code-wrap pre {
+  margin-top: 0 !important;
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+}
+
+.msg-code-lang {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+}
+
+.msg-preview-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  color: var(--accent-2);
+  background: rgba(125, 211, 252, 0.08);
+  border: 1px solid rgba(125, 211, 252, 0.25);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: all var(--t-fast);
+}
+
+.msg-preview-btn:hover {
+  color: #fff;
+  background: rgba(125, 211, 252, 0.18);
+  border-color: rgba(125, 211, 252, 0.5);
+  box-shadow: 0 0 12px rgba(125, 211, 252, 0.2);
+}
+
+/* ── Attachments in user messages ─────────────── */
+.msg-attachments {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.msg-att-thumb {
+  max-width: 200px;
+  max-height: 150px;
+  object-fit: cover;
+  border-radius: var(--r-md);
+  border: 1px solid var(--panel-border);
+}
+.msg-att-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(120, 180, 255, 0.06);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-md);
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+.msg-att-icon {
+  font-size: 16px;
+}
+.msg-att-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

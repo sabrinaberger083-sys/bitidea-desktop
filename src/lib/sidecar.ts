@@ -500,3 +500,134 @@ export function getRoutineHistory(id: string, limit = 10): Promise<RoutineRunRes
   return req<RoutineRunResult[]>(`/routines/${id}/history?limit=${limit}`);
 }
 
+/* ── Memory system ──────────────────────────────────────── */
+
+export interface MemoryStatus {
+  enabled: boolean;
+  provider: string;
+  recall_mode: string;
+  honcho_connected: boolean;
+  has_honcho_key: boolean;
+}
+
+export interface MemoryConfigInput {
+  enabled: boolean;
+  provider?: string;
+  honcho_api_key?: string;
+  recall_mode?: string;
+}
+
+export function getMemoryStatus(): Promise<MemoryStatus> {
+  return req<MemoryStatus>('/memory/status');
+}
+
+export function saveMemoryConfig(cfg: MemoryConfigInput): Promise<{ ok: true }> {
+  return req<{ ok: true }>('/memory/config', {
+    method: 'POST',
+    body: JSON.stringify(cfg),
+  });
+}
+
+export function getMemoryEntries(): Promise<{ memory_md: string | null; user_md: string | null }> {
+  return req<{ memory_md: string | null; user_md: string | null }>('/memory/entries');
+}
+
+/* ── Terminal backend ───────────────────────────────────── */
+
+export interface TerminalConfig {
+  backend: string;
+  docker_image?: string;
+  ssh_host?: string;
+  ssh_user?: string;
+  ssh_port?: number;
+  ssh_key?: string;
+  modal_image?: string;
+}
+
+export function getTerminalConfig(): Promise<TerminalConfig> {
+  return req<TerminalConfig>('/terminal/config');
+}
+
+export function saveTerminalConfig(cfg: TerminalConfig): Promise<{ ok: true }> {
+  return req<{ ok: true }>('/terminal/config', {
+    method: 'POST',
+    body: JSON.stringify(cfg),
+  });
+}
+
+/* ── Voice (STT / TTS) ─────────────────────────────────── */
+
+export interface VoiceConfig {
+  stt_provider: string;
+  tts_provider: string;
+  stt_available: boolean;
+  tts_available: boolean;
+}
+
+export function getVoiceConfig(): Promise<VoiceConfig> {
+  return req<VoiceConfig>('/voice/config');
+}
+
+export function saveVoiceConfig(cfg: Record<string, string>): Promise<{ ok: true }> {
+  return req<{ ok: true }>('/voice/config', {
+    method: 'POST',
+    body: JSON.stringify(cfg),
+  });
+}
+
+export function transcribeAudio(audioBase64: string, format = 'webm'): Promise<{ ok: boolean; text: string; error?: string }> {
+  return req<{ ok: boolean; text: string; error?: string }>('/voice/transcribe', {
+    method: 'POST',
+    body: JSON.stringify({ audio_base64: audioBase64, format }),
+  });
+}
+
+export function synthesizeSpeech(text: string, voice?: string): Promise<{ ok: boolean; audio_base64: string; error?: string }> {
+  return req<{ ok: boolean; audio_base64: string; error?: string }>('/voice/synthesize', {
+    method: 'POST',
+    body: JSON.stringify({ text, voice }),
+  });
+}
+
+/* ── Messaging gateway ──────────────────────────────────── */
+
+export interface GatewayStatus {
+  running: boolean;
+  platforms: string[];
+}
+
+export interface GatewayConfigInput {
+  telegram_token?: string;
+  telegram_allowed_users?: string;
+  discord_token?: string;
+  slack_bot_token?: string;
+  slack_app_token?: string;
+  feishu_app_id?: string;
+  feishu_app_secret?: string;
+  feishu_verification_token?: string;
+  feishu_encrypt_key?: string;
+}
+
+export function getGatewayStatus(): Promise<GatewayStatus> {
+  return req<GatewayStatus>('/gateway/status');
+}
+
+export function startGateway(): Promise<{ ok: boolean; error?: string }> {
+  return req<{ ok: boolean; error?: string }>('/gateway/start', { method: 'POST' });
+}
+
+export function stopGateway(): Promise<{ ok: true }> {
+  return req<{ ok: true }>('/gateway/stop', { method: 'POST' });
+}
+
+export function getGatewayPlatforms(): Promise<{ platforms: string[] }> {
+  return req<{ platforms: string[] }>('/gateway/platforms');
+}
+
+export function saveGatewayConfig(cfg: GatewayConfigInput): Promise<{ ok: true }> {
+  return req<{ ok: true }>('/gateway/config', {
+    method: 'POST',
+    body: JSON.stringify(cfg),
+  });
+}
+

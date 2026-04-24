@@ -1,0 +1,1199 @@
+diff --git a/index.html b/index.html
+index ff93803..ec9faf4 100644
+--- a/index.html
++++ b/index.html
+@@ -4,6 +4,9 @@
+     <meta charset="UTF-8" />
+     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
++    <link rel="preconnect" href="https://fonts.googleapis.com">
++    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
++    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+     <title>Tauri + React + Typescript</title>
+   </head>
+ 
+diff --git a/sidecar/agent_bridge.py b/sidecar/agent_bridge.py
+index 2513f18..8aa9146 100644
+--- a/sidecar/agent_bridge.py
++++ b/sidecar/agent_bridge.py
+@@ -369,7 +369,11 @@ class AgentRunner:
+         )
+         self.messages = messages
+         self.project_path = project_path
+-        self.system_prompt = system_prompt
++        self.system_prompt = system_prompt or (
++            "你是 Bitidea Agent，由小小思路信息科技有限公司开发的智能 AI 助手。"
++            "当用户使用中文时，始终用流畅自然的中文回复，不要出现截断、乱码或不完整的句子。"
++            "回答要准确、完整、有条理。"
++        )
+ 
+         self._loop: Optional[asyncio.AbstractEventLoop] = None
+         self._queue: Optional[asyncio.Queue[bytes]] = None
+diff --git a/src/components/Chat/ApprovalModal.css b/src/components/Chat/ApprovalModal.css
+index 7449cfa..e4f19bb 100644
+--- a/src/components/Chat/ApprovalModal.css
++++ b/src/components/Chat/ApprovalModal.css
+@@ -6,7 +6,7 @@
+   position: fixed;
+   inset: 0;
+   z-index: 1000;
+-  background: rgba(5, 7, 15, 0.72);
++  background: rgba(8, 12, 24, 0.65);
+   backdrop-filter: blur(8px);
+   -webkit-backdrop-filter: blur(8px);
+   display: flex;
+@@ -24,6 +24,8 @@
+   border-radius: var(--r-lg);
+   padding: 24px 26px 22px;
+   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(245, 158, 11, 0.15);
++  backdrop-filter: blur(20px);
++  -webkit-backdrop-filter: blur(20px);
+   display: flex;
+   flex-direction: column;
+   gap: 14px;
+@@ -42,9 +44,9 @@
+   display: flex;
+   align-items: center;
+   gap: 10px;
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 13px;
+-  letter-spacing: 0.18em;
++  letter-spacing: 0.06em;
+ }
+ .approve-glyph {
+   color: var(--warning);
+@@ -68,11 +70,11 @@
+   grid-template-columns: 90px 1fr;
+   gap: 6px 14px;
+   margin: 2px 0 4px;
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+ }
+ .approve-meta dt {
+   font-size: 10px;
+-  letter-spacing: 0.2em;
++  letter-spacing: 0.06em;
+   color: var(--ink-faint);
+   padding-top: 4px;
+ }
+@@ -86,7 +88,7 @@
+ .approve-cmd {
+   margin: 0;
+   padding: 10px 12px;
+-  background: rgba(0, 0, 0, 0.45);
++  background: rgba(15, 25, 50, 0.35);
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-xs);
+   font-family: var(--font-mono);
+@@ -104,7 +106,7 @@
+   gap: 10px;
+   margin-top: 2px;
+   color: var(--ink-dim);
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 12.5px;
+   cursor: pointer;
+   user-select: none;
+@@ -150,13 +152,13 @@
+ 
+ .approve-hint {
+   margin-left: 8px;
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 10px;
+-  letter-spacing: 0.14em;
++  letter-spacing: 0.04em;
+   color: var(--ink-faint);
+   opacity: 0.7;
+ }
+-.btn-primary .approve-hint { color: rgba(5, 10, 20, 0.55); }
++.btn-primary .approve-hint { color: rgba(15, 25, 50, 0.55); }
+ 
+ /* ── Severity tiers ─────────────────────────────────────────── */
+ 
+@@ -206,7 +208,7 @@
+ .approve-preview .tool-preview-file {
+   margin: 0;
+   padding: 10px 12px;
+-  background: rgba(0, 0, 0, 0.45);
++  background: rgba(15, 25, 50, 0.35);
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-xs);
+   font-family: var(--font-mono);
+@@ -233,7 +235,7 @@
+   color: var(--ink-dim);
+   font-size: 12px;
+   padding: 6px 8px;
+-  background: rgba(0, 0, 0, 0.35);
++  background: rgba(15, 25, 50, 0.25);
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-xs);
+   max-height: 120px;
+diff --git a/src/components/Chat/ArtifactPreview.css b/src/components/Chat/ArtifactPreview.css
+index c271050..a7e5b04 100644
+--- a/src/components/Chat/ArtifactPreview.css
++++ b/src/components/Chat/ArtifactPreview.css
+@@ -54,8 +54,8 @@
+   letter-spacing: 0.04em;
+   text-transform: uppercase;
+   color: var(--accent-2);
+-  background: rgba(0, 229, 255, 0.1);
+-  border: 1px solid rgba(0, 229, 255, 0.25);
++  background: rgba(125, 211, 252, 0.1);
++  border: 1px solid rgba(125, 211, 252, 0.25);
+   border-radius: var(--r-sm);
+   white-space: nowrap;
+ }
+@@ -94,7 +94,7 @@
+ .ap-btn:hover {
+   color: var(--ink);
+   border-color: var(--panel-border-strong);
+-  background: rgba(120, 180, 255, 0.06);
++  background: rgba(120, 180, 255, 0.05);
+ }
+ 
+ .ap-btn-close {
+@@ -141,7 +141,7 @@
+ 
+ .ap-fallback {
+   padding: 16px;
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 13px;
+   color: var(--ink);
+   white-space: pre-wrap;
+diff --git a/src/components/Chat/AssistantPicker.css b/src/components/Chat/AssistantPicker.css
+index 0037b3c..bbce7c8 100644
+--- a/src/components/Chat/AssistantPicker.css
++++ b/src/components/Chat/AssistantPicker.css
+@@ -12,7 +12,7 @@
+   align-items: center;
+   gap: 6px;
+   padding: 4px 10px;
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 12px;
+   color: var(--ink-dim);
+   background: var(--panel);
+@@ -54,13 +54,15 @@
+   position: absolute;
+   top: calc(100% + 6px);
+   left: 0;
+-  min-width: 260px;
++  width: 280px;
+   max-height: 400px;
+   overflow-y: auto;
+   background: var(--panel-solid);
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-lg);
+-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
++  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
++  backdrop-filter: blur(16px);
++  -webkit-backdrop-filter: blur(16px);
+   z-index: 50;
+   animation: assistantPickerIn 0.12s ease;
+   display: flex;
+@@ -155,7 +157,7 @@
+   align-items: center;
+   padding: 7px 12px 7px 34px;
+   font-size: 12px;
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   color: var(--accent);
+   cursor: pointer;
+   transition: background var(--t-fast), color var(--t-fast);
+diff --git a/src/components/Chat/ChatWindow.css b/src/components/Chat/ChatWindow.css
+index 2d712dd..36ee36b 100644
+--- a/src/components/Chat/ChatWindow.css
++++ b/src/components/Chat/ChatWindow.css
+@@ -13,11 +13,13 @@
+   justify-content: space-between;
+   padding: 12px 20px;
+   border-bottom: 1px solid var(--panel-border);
+-  backdrop-filter: blur(16px);
+-  -webkit-backdrop-filter: blur(16px);
+-  background: rgba(5, 7, 15, 0.55);
++  backdrop-filter: blur(20px);
++  -webkit-backdrop-filter: blur(20px);
++  background: rgba(15, 25, 50, 0.20);
+   gap: 12px;
+   flex-shrink: 0;
++  position: relative;
++  z-index: 20;
+ }
+ 
+ /* ── Body layout ───────────────────────────────────────── */
+diff --git a/src/components/Chat/ConversationSidebar.css b/src/components/Chat/ConversationSidebar.css
+index 8f37e5a..78e9e49 100644
+--- a/src/components/Chat/ConversationSidebar.css
++++ b/src/components/Chat/ConversationSidebar.css
+@@ -6,7 +6,7 @@
+   display: flex;
+   flex-direction: column;
+   border-right: 1px solid var(--panel-border);
+-  background: rgba(5, 7, 15, 0.55);
++  background: rgba(15, 25, 50, 0.20);
+   backdrop-filter: blur(16px);
+   -webkit-backdrop-filter: blur(16px);
+   overflow: hidden;
+@@ -80,9 +80,9 @@
+   padding: 0 8px;
+ }
+ .sidebar-bucket-label {
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 10px;
+-  letter-spacing: 0.2em;
++  letter-spacing: 0.08em;
+   text-transform: uppercase;
+   color: var(--ink-faint);
+   padding: 10px 8px 4px;
+@@ -104,8 +104,8 @@
+   background: rgba(74, 158, 255, 0.06);
+ }
+ .conv-active {
+-  background: rgba(74, 158, 255, 0.1);
+-  border-left: 2px solid var(--accent);
++  background: rgba(74, 158, 255, 0.08);
++  border-radius: var(--r-sm);
+ }
+ .conv-selected {
+   background: rgba(74, 158, 255, 0.08);
+@@ -160,7 +160,7 @@
+ }
+ .conv-rename-input {
+   width: 100%;
+-  background: rgba(0, 0, 0, 0.3);
++  background: rgba(15, 25, 50, 0.3);
+   border: 1px solid var(--accent);
+   border-radius: var(--r-xs);
+   color: var(--ink);
+@@ -204,7 +204,7 @@
+ }
+ .search-input {
+   width: 100%;
+-  background: rgba(0, 0, 0, 0.3);
++  background: rgba(15, 25, 50, 0.3);
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-sm);
+   color: var(--ink);
+@@ -251,7 +251,7 @@
+   margin-top: 2px;
+ }
+ .search-hit-snippet mark {
+-  background: rgba(0, 229, 255, 0.2);
++  background: rgba(125, 211, 252, 0.2);
+   color: var(--accent-2);
+   padding: 0 1px;
+   border-radius: 1px;
+@@ -265,7 +265,7 @@
+   background: var(--panel-solid);
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-sm);
+-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
++  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+   padding: 4px;
+   min-width: 160px;
+ }
+@@ -317,7 +317,7 @@
+   background: var(--panel-solid);
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-sm);
+-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
++  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+   padding: 4px;
+   min-width: 140px;
+   z-index: 101;
+@@ -370,7 +370,7 @@
+   background: var(--panel-solid);
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-sm);
+-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
++  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+   padding: 4px;
+   min-width: 120px;
+   z-index: 50;
+diff --git a/src/components/Chat/FolderList.css b/src/components/Chat/FolderList.css
+index d12b7ea..e12b19d 100644
+--- a/src/components/Chat/FolderList.css
++++ b/src/components/Chat/FolderList.css
+@@ -21,9 +21,9 @@
+ }
+ 
+ .folder-header-label {
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 10px;
+-  letter-spacing: 0.2em;
++  letter-spacing: 0.07em;
+   text-transform: uppercase;
+   color: var(--ink-faint);
+   user-select: none;
+@@ -74,7 +74,6 @@
+   font-size: 12px;
+   color: var(--ink);
+   user-select: none;
+-  border-left: 2px solid transparent;
+ }
+ 
+ .folder-item:hover {
+@@ -82,8 +81,7 @@
+ }
+ 
+ .folder-item-active {
+-  background: rgba(74, 158, 255, 0.1);
+-  border-left-color: var(--accent);
++  background: rgba(74, 158, 255, 0.12);
+ }
+ 
+ .folder-item-creating {
+@@ -122,7 +120,7 @@
+ .folder-rename-input {
+   flex: 1;
+   min-width: 0;
+-  background: rgba(0, 0, 0, 0.3);
++  background: rgba(15, 25, 50, 0.25);
+   border: 1px solid var(--accent);
+   border-radius: var(--r-xs);
+   color: var(--ink);
+diff --git a/src/components/Chat/InputBox.css b/src/components/Chat/InputBox.css
+index d970aab..7594143 100644
+--- a/src/components/Chat/InputBox.css
++++ b/src/components/Chat/InputBox.css
+@@ -2,7 +2,7 @@
+   position: relative;
+   padding: 14px 20px 20px;
+   flex-shrink: 0;
+-  background: linear-gradient(180deg, transparent, rgba(5, 7, 15, 0.6) 40%);
++  background: linear-gradient(180deg, transparent, rgba(15, 25, 50, 0.25) 40%);
+ }
+ .input-bar {
+   max-width: 820px;
+@@ -12,10 +12,10 @@
+   gap: 10px;
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-lg);
+-  background: rgba(5, 10, 20, 0.7);
++  background: rgba(15, 25, 50, 0.30);
+   padding: 8px 8px 8px 14px;
+-  backdrop-filter: blur(16px);
+-  -webkit-backdrop-filter: blur(16px);
++  backdrop-filter: blur(12px);
++  -webkit-backdrop-filter: blur(12px);
+   transition: border-color var(--t), box-shadow var(--t);
+ }
+ .input-bar:focus-within {
+@@ -49,7 +49,7 @@
+   display: flex;
+   align-items: center;
+   justify-content: center;
+-  background: rgba(0, 229, 255, 0.06);
++  background: rgba(74, 158, 255, 0.06);
+   border: 2px dashed var(--accent-2);
+   border-radius: var(--r-lg);
+   color: var(--accent-2);
+@@ -72,7 +72,7 @@
+   align-items: center;
+   gap: 6px;
+   padding: 4px 8px;
+-  background: rgba(120, 180, 255, 0.08);
++  background: rgba(120, 180, 255, 0.06);
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-md);
+   font-size: 12px;
+diff --git a/src/components/Chat/KnowledgePanel.css b/src/components/Chat/KnowledgePanel.css
+index 787130e..79b3678 100644
+--- a/src/components/Chat/KnowledgePanel.css
++++ b/src/components/Chat/KnowledgePanel.css
+@@ -32,7 +32,7 @@
+   flex: 1;
+ }
+ .kb-toggle-count {
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 10px;
+   color: var(--ink-faint);
+   background: rgba(74, 158, 255, 0.1);
+@@ -82,8 +82,8 @@
+   gap: 8px;
+   padding: 6px 8px;
+   border-radius: var(--r-xs);
+-  background: rgba(0, 0, 0, 0.15);
+-  border: 1px solid rgba(120, 180, 255, 0.06);
++  background: rgba(15, 25, 50, 0.2);
++  border: 1px solid rgba(120, 180, 255, 0.05);
+   transition: border-color var(--t-fast);
+ }
+ .kb-doc-item:hover {
+@@ -112,7 +112,7 @@
+ .kb-doc-meta {
+   font-size: 10px;
+   color: var(--ink-faint);
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+ }
+ 
+ .kb-doc-remove {
+diff --git a/src/components/Chat/MarkdownEditor.css b/src/components/Chat/MarkdownEditor.css
+index 460d273..693ebee 100644
+--- a/src/components/Chat/MarkdownEditor.css
++++ b/src/components/Chat/MarkdownEditor.css
+@@ -43,8 +43,8 @@
+   letter-spacing: 0.04em;
+   text-transform: uppercase;
+   color: var(--accent-2);
+-  background: rgba(0, 229, 255, 0.1);
+-  border: 1px solid rgba(0, 229, 255, 0.25);
++  background: rgba(125, 211, 252, 0.1);
++  border: 1px solid rgba(125, 211, 252, 0.25);
+   border-radius: var(--r-sm);
+   white-space: nowrap;
+ }
+diff --git a/src/components/Chat/Message.css b/src/components/Chat/Message.css
+index b4b81dc..6c25628 100644
+--- a/src/components/Chat/Message.css
++++ b/src/components/Chat/Message.css
+@@ -44,9 +44,9 @@
+   background: linear-gradient(
+     135deg,
+     rgba(74, 158, 255, 0.14) 0%,
+-    rgba(0, 229, 255, 0.08) 100%
++    rgba(125, 211, 252, 0.04) 100%
+   );
+-  border-color: rgba(74, 158, 255, 0.35);
++  border-color: rgba(74, 158, 255, 0.2);
+   color: var(--ink);
+ }
+ .bubble-asst {
+@@ -107,7 +107,7 @@
+   align-items: center;
+   justify-content: space-between;
+   padding: 4px 12px;
+-  background: rgba(120, 180, 255, 0.06);
++  background: rgba(120, 180, 255, 0.04);
+   border: 1px solid var(--panel-border);
+   border-bottom: none;
+   border-radius: var(--r-sm) var(--r-sm) 0 0;
+@@ -135,8 +135,8 @@
+   font-family: var(--font-sans);
+   font-weight: 500;
+   color: var(--accent-2);
+-  background: rgba(0, 229, 255, 0.08);
+-  border: 1px solid rgba(0, 229, 255, 0.25);
++  background: rgba(125, 211, 252, 0.08);
++  border: 1px solid rgba(125, 211, 252, 0.25);
+   border-radius: var(--r-sm);
+   cursor: pointer;
+   transition: all var(--t-fast);
+@@ -144,9 +144,9 @@
+ 
+ .msg-preview-btn:hover {
+   color: #fff;
+-  background: rgba(0, 229, 255, 0.18);
+-  border-color: rgba(0, 229, 255, 0.5);
+-  box-shadow: 0 0 12px rgba(0, 229, 255, 0.2);
++  background: rgba(125, 211, 252, 0.18);
++  border-color: rgba(125, 211, 252, 0.5);
++  box-shadow: 0 0 12px rgba(125, 211, 252, 0.2);
+ }
+ 
+ /* ── Attachments in user messages ─────────────── */
+diff --git a/src/components/Chat/MessageList.css b/src/components/Chat/MessageList.css
+index add9c44..3db61cd 100644
+--- a/src/components/Chat/MessageList.css
++++ b/src/components/Chat/MessageList.css
+@@ -30,8 +30,8 @@
+   font-weight: 600;
+   background: var(--grad-title);
+   -webkit-background-clip: text;
+-  background-clip: text;
+   -webkit-text-fill-color: transparent;
++  background-clip: text;
+   color: transparent;
+ }
+ .ml-empty-sub {
+@@ -42,7 +42,7 @@
+ }
+ .ml-empty-hints {
+   margin-top: 14px;
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 11px;
+   color: var(--ink-faint);
+   display: inline-flex;
+@@ -55,7 +55,9 @@
+   border: 1px solid var(--panel-border);
+   border-bottom-width: 2px;
+   border-radius: var(--r-xs);
+-  background: rgba(5, 10, 20, 0.7);
++  background: rgba(15, 25, 50, 0.3);
++  backdrop-filter: blur(8px);
++  -webkit-backdrop-filter: blur(8px);
+   color: var(--ink);
+   font-family: inherit;
+   font-size: 11px;
+diff --git a/src/components/Chat/MessageList.tsx b/src/components/Chat/MessageList.tsx
+index c159942..fe9f1b0 100644
+--- a/src/components/Chat/MessageList.tsx
++++ b/src/components/Chat/MessageList.tsx
+@@ -29,19 +29,21 @@ export default function MessageList({ messages, lang, onPreviewArtifact }: Props
+   const L = COPY[lang];
+   const scrollerRef = useRef<HTMLDivElement | null>(null);
+   const lastContentLen = useRef(0);
++  const prevCountRef = useRef(0);
+ 
+   // Auto-scroll on new tokens / new messages, unless the user scrolled up.
+   useEffect(() => {
+     const el = scrollerRef.current;
+     if (!el) return;
+-    const last = messages[messages.length - 1];
+     const totalLen =
+       messages.reduce((n, m) => n + m.content.length, 0) + messages.length;
+     const nearBottom =
+       el.scrollHeight - el.scrollTop - el.clientHeight < 160;
+     const grew = totalLen > lastContentLen.current;
++    const newMessagesAdded = messages.length > prevCountRef.current;
+     lastContentLen.current = totalLen;
+-    if (grew && (nearBottom || last?.role === 'user')) {
++    prevCountRef.current = messages.length;
++    if (newMessagesAdded || (grew && nearBottom)) {
+       el.scrollTop = el.scrollHeight;
+     }
+   }, [messages]);
+diff --git a/src/components/Chat/ModelPicker.css b/src/components/Chat/ModelPicker.css
+index 4a2f366..545aea9 100644
+--- a/src/components/Chat/ModelPicker.css
++++ b/src/components/Chat/ModelPicker.css
+@@ -12,7 +12,7 @@
+   align-items: center;
+   gap: 6px;
+   padding: 4px 10px;
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 12px;
+   color: var(--ink-dim);
+   background: var(--panel);
+@@ -59,7 +59,9 @@
+   background: var(--panel-solid);
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-lg);
+-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
++  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
++  backdrop-filter: blur(16px);
++  -webkit-backdrop-filter: blur(16px);
+   z-index: 100;
+   animation: modelPickerIn 0.12s ease;
+   display: flex;
+@@ -77,7 +79,7 @@
+   align-items: center;
+   gap: 8px;
+   padding: 7px 12px;
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 12px;
+   color: var(--ink-dim);
+   cursor: pointer;
+diff --git a/src/components/Chat/ProjectPicker.css b/src/components/Chat/ProjectPicker.css
+index c6b36eb..79c0d19 100644
+--- a/src/components/Chat/ProjectPicker.css
++++ b/src/components/Chat/ProjectPicker.css
+@@ -11,7 +11,7 @@
+   align-items: center;
+   gap: 8px;
+   width: 100%;
+-  background: rgba(0, 0, 0, 0.25);
++  background: rgba(15, 25, 50, 0.2);
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-sm);
+   color: var(--ink);
+@@ -57,6 +57,8 @@
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-sm);
+   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
++  backdrop-filter: blur(16px);
++  -webkit-backdrop-filter: blur(16px);
+   padding: 4px;
+   max-height: 320px;
+   overflow-y: auto;
+@@ -127,7 +129,7 @@
+ 
+ .project-rename-input {
+   width: 100%;
+-  background: rgba(0, 0, 0, 0.3);
++  background: rgba(15, 25, 50, 0.25);
+   border: 1px solid var(--accent);
+   border-radius: var(--r-xs);
+   color: var(--ink);
+diff --git a/src/components/Chat/StatusLine.css b/src/components/Chat/StatusLine.css
+index 4b395cf..c086051 100644
+--- a/src/components/Chat/StatusLine.css
++++ b/src/components/Chat/StatusLine.css
+@@ -3,10 +3,10 @@
+   align-items: center;
+   gap: 8px;
+   padding: 2px 8px;
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 12px;
+   color: var(--ink-dim);
+-  letter-spacing: 0.04em;
++  letter-spacing: 0;
+   animation: fadeIn 0.2s ease both;
+ }
+ .status-dot {
+diff --git a/src/components/Chat/StepIndicator.css b/src/components/Chat/StepIndicator.css
+index d1f00c8..7c3fe1e 100644
+--- a/src/components/Chat/StepIndicator.css
++++ b/src/components/Chat/StepIndicator.css
+@@ -5,10 +5,10 @@
+   padding: 2px 8px;
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-pill);
+-  background: rgba(10, 14, 29, 0.55);
+-  font-family: var(--font-mono);
++  background: rgba(15, 25, 50, 0.35);
++  font-family: var(--font-sans);
+   font-size: 10.5px;
+-  letter-spacing: 0.16em;
++  letter-spacing: 0.06em;
+   color: var(--ink-dim);
+   white-space: nowrap;
+ }
+diff --git a/src/components/Chat/ThinkingBlock.css b/src/components/Chat/ThinkingBlock.css
+index fe9cb08..b558a9e 100644
+--- a/src/components/Chat/ThinkingBlock.css
++++ b/src/components/Chat/ThinkingBlock.css
+@@ -5,7 +5,9 @@
+ .think-card {
+   border: 1px dashed var(--panel-border);
+   border-radius: var(--r-sm);
+-  background: rgba(10, 14, 29, 0.45);
++  background: rgba(15, 25, 50, 0.20);
++  backdrop-filter: blur(12px);
++  -webkit-backdrop-filter: blur(12px);
+   font-family: var(--font-mono);
+   color: var(--ink-dim);
+   overflow: hidden;
+@@ -25,7 +27,7 @@
+   font: inherit;
+   color: var(--ink-dim);
+   font-size: 11px;
+-  letter-spacing: 0.18em;
++  letter-spacing: 0.08em;
+   cursor: pointer;
+   text-align: left;
+ }
+diff --git a/src/components/Chat/ToolCard.css b/src/components/Chat/ToolCard.css
+index d4c087d..c6116ac 100644
+--- a/src/components/Chat/ToolCard.css
++++ b/src/components/Chat/ToolCard.css
+@@ -6,7 +6,9 @@
+ .tool-card {
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-sm);
+-  background: rgba(5, 10, 20, 0.55);
++  background: rgba(15, 25, 50, 0.20);
++  backdrop-filter: blur(12px);
++  -webkit-backdrop-filter: blur(12px);
+   font-family: var(--font-mono);
+   font-size: 12.5px;
+   overflow: hidden;
+@@ -81,7 +83,7 @@
+   display: flex;
+   flex-direction: column;
+   gap: 8px;
+-  background: rgba(0, 0, 0, 0.2);
++  background: rgba(15, 25, 50, 0.15);
+ }
+ 
+ .tool-args,
+@@ -89,8 +91,8 @@
+ .tool-result-body {
+   margin: 0;
+   padding: 8px 10px;
+-  background: rgba(0, 0, 0, 0.35);
+-  border: 1px solid rgba(120, 180, 255, 0.08);
++  background: rgba(15, 25, 50, 0.25);
++  border: 1px solid rgba(120, 180, 255, 0.05);
+   border-radius: var(--r-xs);
+   color: var(--ink);
+   font-family: var(--font-mono);
+@@ -113,7 +115,7 @@
+ }
+ .tool-result-label {
+   font-size: 10px;
+-  letter-spacing: 0.15em;
++  letter-spacing: 0.08em;
+   color: var(--ink-dim);
+   text-transform: uppercase;
+ }
+diff --git a/src/components/Chat/UndoToast.css b/src/components/Chat/UndoToast.css
+index cd4bf50..138654d 100644
+--- a/src/components/Chat/UndoToast.css
++++ b/src/components/Chat/UndoToast.css
+@@ -13,6 +13,8 @@
+   font-size: 12px;
+   color: var(--ink-dim);
+   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
++  backdrop-filter: blur(16px);
++  -webkit-backdrop-filter: blur(16px);
+   z-index: 20;
+   animation: fadeIn 0.2s ease;
+ }
+@@ -23,7 +25,7 @@
+   border-radius: var(--r-xs);
+   padding: 2px 8px;
+   font-size: 11px;
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   cursor: pointer;
+   transition: all var(--t);
+ }
+diff --git a/src/components/Onboarding/Onboarding.css b/src/components/Onboarding/Onboarding.css
+index 96d8c4d..93d35b2 100644
+--- a/src/components/Onboarding/Onboarding.css
++++ b/src/components/Onboarding/Onboarding.css
+@@ -18,12 +18,12 @@
+   height: 100%;
+   background: var(--grad-brand);
+   transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+-  box-shadow: 0 0 12px rgba(0, 229, 255, 0.45);
++  box-shadow: 0 0 12px rgba(125, 211, 252, 0.45);
+ }
+ .onb-progress-label {
+   margin-top: 6px;
+   font-size: 10px;
+-  letter-spacing: 0.25em;
++  letter-spacing: 0.07em;
+   text-transform: uppercase;
+ }
+ .onb-content {
+@@ -71,9 +71,9 @@
+   margin-bottom: 40px;
+ }
+ .onb-step-head .section-label {
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 12px;
+-  letter-spacing: 0.25em;
++  letter-spacing: 0.07em;
+   text-transform: uppercase;
+   color: var(--accent-2);
+   margin-bottom: 12px;
+@@ -114,7 +114,7 @@
+   transition: all var(--t);
+ }
+ .provider-card .provider-name {
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 15px;
+   font-weight: 600;
+   color: var(--ink);
+@@ -147,7 +147,7 @@
+   align-items: center;
+   gap: 12px;
+   font-size: 13px;
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   min-height: 22px;
+ }
+ .onb-test-ok { color: var(--success); }
+diff --git a/src/components/Settings/AssistantEditor.css b/src/components/Settings/AssistantEditor.css
+index be0a90f..4d19ce0 100644
+--- a/src/components/Settings/AssistantEditor.css
++++ b/src/components/Settings/AssistantEditor.css
+@@ -7,9 +7,9 @@
+ .ae-backdrop {
+   position: fixed;
+   inset: 0;
+-  background: rgba(0, 0, 0, 0.6);
+-  backdrop-filter: blur(8px);
+-  -webkit-backdrop-filter: blur(8px);
++  background: rgba(15, 25, 50, 0.45);
++  backdrop-filter: blur(16px);
++  -webkit-backdrop-filter: blur(16px);
+   display: flex;
+   align-items: center;
+   justify-content: center;
+@@ -52,9 +52,9 @@
+ }
+ 
+ .ae-title {
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 12px;
+-  letter-spacing: 0.2em;
++  letter-spacing: 0.06em;
+   text-transform: uppercase;
+   color: var(--accent-2);
+ }
+@@ -104,7 +104,7 @@
+ /* ── Input overrides for this modal ──────────────────────── */
+ .ae-body .input,
+ .ae-body .textarea {
+-  background: rgba(0, 0, 0, 0.3);
++  background: rgba(15, 25, 50, 0.25);
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-sm);
+   color: var(--ink);
+@@ -142,7 +142,7 @@
+ .ae-icon-btn {
+   width: 36px;
+   height: 36px;
+-  background: rgba(0, 0, 0, 0.25);
++  background: rgba(15, 25, 50, 0.2);
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-sm);
+   cursor: pointer;
+diff --git a/src/components/Settings/SettingsPanel.css b/src/components/Settings/SettingsPanel.css
+index 13d8427..8c6be13 100644
+--- a/src/components/Settings/SettingsPanel.css
++++ b/src/components/Settings/SettingsPanel.css
+@@ -1,7 +1,7 @@
+ .settings-backdrop {
+   position: fixed;
+   inset: 0;
+-  background: rgba(5, 7, 15, 0.55);
++  background: rgba(15, 25, 50, 0.28);
+   backdrop-filter: blur(4px);
+   -webkit-backdrop-filter: blur(4px);
+   opacity: 0;
+@@ -15,7 +15,7 @@
+   position: fixed;
+   top: 0; right: 0; bottom: 0;
+   width: min(420px, 92vw);
+-  background: rgba(10, 14, 29, 0.92);
++  background: rgba(15, 25, 50, 0.85);
+   border-left: 1px solid var(--panel-border);
+   box-shadow: -8px 0 48px rgba(0, 0, 0, 0.5);
+   backdrop-filter: blur(20px);
+@@ -108,7 +108,7 @@
+   padding: 10px 12px;
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-xs);
+-  background: rgba(5, 10, 20, 0.4);
++  background: rgba(15, 25, 50, 0.2);
+ }
+ .mcp-server-info {
+   flex: 1;
+@@ -179,7 +179,7 @@
+   padding: 12px;
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-xs);
+-  background: rgba(5, 10, 20, 0.4);
++  background: rgba(15, 25, 50, 0.2);
+ }
+ .mcp-form-buttons {
+   display: flex;
+diff --git a/src/components/common/Logo.css b/src/components/common/Logo.css
+index 6544611..1849809 100644
+--- a/src/components/common/Logo.css
++++ b/src/components/common/Logo.css
+@@ -2,9 +2,9 @@
+   display: inline-flex;
+   align-items: center;
+   gap: 0.35em;
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-weight: 700;
+-  letter-spacing: 0.12em;
++  letter-spacing: 0.06em;
+   line-height: 1;
+   user-select: none;
+ }
+diff --git a/src/styles/globals.css b/src/styles/globals.css
+index 51aefcf..c15bce2 100644
+--- a/src/styles/globals.css
++++ b/src/styles/globals.css
+@@ -10,18 +10,17 @@
+ /* ── Buttons ─────────────────────────────────────────────── */
+ .btn {
+   padding: 12px 22px;
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 14px;
+   font-weight: 500;
+   text-decoration: none;
+-  border-radius: var(--r-xs);
++  border-radius: var(--r-md);
+   transition: all var(--t);
+   cursor: pointer;
+   border: 1px solid transparent;
+   display: inline-flex;
+   align-items: center;
+   gap: 10px;
+-  letter-spacing: 0.02em;
+   background: transparent;
+   color: var(--ink);
+   white-space: nowrap;
+@@ -44,7 +43,7 @@
+   border-color: transparent;
+ }
+ .btn-primary:not(:disabled):hover {
+-  box-shadow: 0 0 32px rgba(0, 229, 255, 0.5);
++  box-shadow: 0 4px 16px rgba(74, 158, 255, 0.25);
+   transform: translateY(-1px);
+ }
+ 
+@@ -94,7 +93,8 @@
+   position: absolute;
+   top: 0; left: 0; right: 0;
+   height: 1px;
+-  background: linear-gradient(90deg, transparent, var(--accent-2), transparent);
++  background: linear-gradient(90deg, transparent, rgba(125, 211, 252, 0.35), transparent);
++  opacity: 0.6;
+ }
+ .terminal-header {
+   padding: 12px 18px;
+@@ -140,10 +140,9 @@
+   background: var(--panel);
+   backdrop-filter: blur(12px);
+   -webkit-backdrop-filter: blur(12px);
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 12px;
+   color: var(--ink-dim);
+-  letter-spacing: 0.05em;
+ }
+ .badge-accent { color: var(--accent-2); border-color: var(--panel-border-strong); }
+ .badge-success { color: var(--success); border-color: rgba(34, 197, 94, 0.35); }
+@@ -164,40 +163,21 @@
+ 
+ /* ── Corner brackets (technical accent) ──────────────────── */
+ .bracket {
+-  position: absolute;
+-  width: 18px; height: 18px;
+-  border: 1px solid var(--accent);
+-  opacity: 0.5;
+-  pointer-events: none;
++  display: none;
+ }
+-.bracket.tl { top: 10px; left: 10px; border-right: none; border-bottom: none; }
+-.bracket.tr { top: 10px; right: 10px; border-left: none; border-bottom: none; }
+-.bracket.bl { bottom: 10px; left: 10px; border-right: none; border-top: none; }
+-.bracket.br { bottom: 10px; right: 10px; border-left: none; border-top: none; }
+ 
+ /* ── Scanline overlay (subtle CRT vibe) ──────────────────── */
+ .scanline {
+-  position: fixed;
+-  inset: 0;
+-  z-index: -1;
+-  pointer-events: none;
+-  background: repeating-linear-gradient(
+-    0deg,
+-    transparent 0px,
+-    transparent 3px,
+-    rgba(255, 255, 255, 0.012) 3px,
+-    rgba(255, 255, 255, 0.012) 4px
+-  );
+-  mix-blend-mode: overlay;
++  display: none;
+ }
+ 
+ /* ── Language switcher (EN / 中) ─────────────────────────── */
+ .lang-switch {
+   display: inline-flex;
+   border: 1px solid var(--panel-border);
+-  border-radius: var(--r-xs);
++  border-radius: var(--r-md);
+   overflow: hidden;
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 12px;
+ }
+ .lang-switch button {
+@@ -223,9 +203,9 @@
+ .textarea,
+ .select {
+   width: 100%;
+-  background: rgba(5, 10, 20, 0.6);
++  background: rgba(15, 25, 50, 0.3);
+   border: 1px solid var(--panel-border);
+-  border-radius: var(--r-xs);
++  border-radius: var(--r-md);
+   color: var(--ink);
+   font-family: var(--font-sans);
+   font-size: 14px;
+@@ -249,9 +229,9 @@
+ /* ── Label ────────────────────────────────────────────────── */
+ .label {
+   display: block;
+-  font-family: var(--font-mono);
++  font-family: var(--font-sans);
+   font-size: 11px;
+-  letter-spacing: 0.15em;
++  letter-spacing: 0.05em;
+   text-transform: uppercase;
+   color: var(--accent-2);
+   margin-bottom: var(--s-2);
+@@ -259,7 +239,7 @@
+ 
+ /* ── Code / markdown tweaks for highlight.js ─────────────── */
+ .md pre {
+-  background: rgba(5, 10, 20, 0.75);
++  background: rgba(15, 25, 50, 0.25);
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-md);
+   padding: 14px 16px;
+@@ -271,7 +251,7 @@
+ .md code {
+   font-family: var(--font-mono);
+   font-size: 0.92em;
+-  background: rgba(74, 158, 255, 0.08);
++  background: rgba(74, 158, 255, 0.06);
+   border: 1px solid var(--panel-border);
+   border-radius: var(--r-xs);
+   padding: 1px 5px;
+diff --git a/src/styles/tokens.css b/src/styles/tokens.css
+index d87e1cf..8e0f8db 100644
+--- a/src/styles/tokens.css
++++ b/src/styles/tokens.css
+@@ -6,23 +6,25 @@
+ 
+ :root {
+   /* ── Background / surface ───────────────────────── */
+-  --bg: #05070f;
+-  --bg-2: #0a0e1d;
+-  --panel: rgba(14, 20, 40, 0.55);
+-  --panel-solid: #0e1428;
+-  --panel-border: rgba(120, 180, 255, 0.15);
+-  --panel-border-strong: rgba(120, 180, 255, 0.35);
++  --bg: #0A1028;
++  --bg-2: #0E1830;
++  --panel: rgba(15, 25, 50, 0.18);
++  --panel-solid: #111B2E;
++  --panel-border: rgba(120, 180, 255, 0.10);
++  --panel-border-strong: rgba(120, 180, 255, 0.18);
++  --border-glow: linear-gradient(135deg, rgba(74,158,255,0.3) 0%, rgba(125,211,252,0.08) 100%);
++  --border-glow-subtle: linear-gradient(135deg, rgba(74,158,255,0.15) 0%, rgba(125,211,252,0.05) 100%);
+ 
+   /* ── Text ───────────────────────────────────────── */
+-  --ink: #e8eeff;
+-  --ink-dim: #8896b8;
+-  --ink-faint: #475069;
++  --ink: #F1F5F9;
++  --ink-dim: #94A3B8;
++  --ink-faint: #64748B;
+ 
+   /* ── Brand / accent ─────────────────────────────── */
+-  --accent: #4A9EFF;      /* primary blue */
+-  --accent-2: #00e5ff;    /* cyan highlight */
+-  --accent-3: #9333ea;    /* purple (skills) */
+-  --accent-purple-light: #c084fc;
++  --accent: #4A9EFF;
++  --accent-2: #7DD3FC;
++  --accent-3: #A78BFA;
++  --accent-purple-light: #C4B5FD;
+ 
+   /* ── Semantic ───────────────────────────────────── */
+   --success: #22c55e;
+@@ -30,26 +32,26 @@
+   --danger: #ef4444;
+ 
+   /* ── Effects ────────────────────────────────────── */
+-  --glow: 0 0 24px rgba(74, 158, 255, 0.35), 0 0 48px rgba(0, 229, 255, 0.15);
+-  --glow-cyan: 0 0 24px rgba(0, 229, 255, 0.4);
+-  --grid-line: rgba(74, 158, 255, 0.08);
++  --glow: 0 4px 24px rgba(74, 158, 255, 0.12), 0 12px 48px rgba(74, 158, 255, 0.06);
++  --glow-cyan: 0 4px 20px rgba(125, 211, 252, 0.15);
++  --grid-line: rgba(74, 158, 255, 0.02);
+ 
+   /* ── Gradients ──────────────────────────────────── */
+-  --grad-brand: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+-  --grad-title: linear-gradient(135deg, #ffffff 0%, var(--accent) 40%, var(--accent-2) 70%, var(--accent-3) 100%);
+-  --grad-skills: linear-gradient(135deg, var(--accent-3) 0%, var(--accent-purple-light) 100%);
++  --grad-brand: linear-gradient(135deg, #4A9EFF 0%, #7DD3FC 100%);
++  --grad-title: linear-gradient(135deg, #F8FAFC 0%, #4A9EFF 50%, #7DD3FC 100%);
++  --grad-skills: linear-gradient(135deg, #A78BFA 0%, #C4B5FD 100%);
+ 
+   /* ── Typography ─────────────────────────────────── */
+-  --font-sans: 'Space Grotesk', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
++  --font-sans: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+   --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+-  --font-zh: 'Noto Sans SC', 'Space Grotesk', -apple-system, system-ui, sans-serif;
++  --font-zh: 'Noto Sans SC', 'Inter', -apple-system, system-ui, sans-serif;
+ 
+   /* ── Radii ──────────────────────────────────────── */
+-  --r-xs: 2px;
+-  --r-sm: 3px;
+-  --r-md: 4px;
+-  --r-lg: 6px;
+-  --r-xl: 8px;
++  --r-xs: 4px;
++  --r-sm: 6px;
++  --r-md: 10px;
++  --r-lg: 14px;
++  --r-xl: 16px;
+   --r-pill: 99px;
+ 
+   /* ── Spacing scale (8pt grid) ───────────────────── */
+@@ -92,16 +94,18 @@ body {
+ }
+ ::-webkit-scrollbar-thumb:hover { background: var(--panel-border-strong); }
+ 
+-/* ── Global animated background ───────────────────── */
++/* ── Global atmospheric background ────────────────── */
+ .bg-layer {
+   position: fixed;
+   inset: 0;
+   z-index: -2;
+   pointer-events: none;
+   background:
+-    radial-gradient(ellipse at top, rgba(74, 158, 255, 0.12) 0%, transparent 50%),
+-    radial-gradient(ellipse at bottom right, rgba(147, 51, 234, 0.08) 0%, transparent 50%),
+-    radial-gradient(ellipse at bottom left, rgba(0, 229, 255, 0.06) 0%, transparent 50%),
++    radial-gradient(ellipse 130% 50% at 50% -5%, rgba(74, 158, 255, 0.35) 0%, transparent 65%),
++    radial-gradient(ellipse 80% 60% at 10% 85%, rgba(167, 139, 250, 0.18) 0%, transparent 55%),
++    radial-gradient(ellipse 70% 50% at 90% 75%, rgba(74, 158, 255, 0.14) 0%, transparent 55%),
++    radial-gradient(ellipse 50% 30% at 50% 50%, rgba(30, 58, 138, 0.12) 0%, transparent 70%),
++    linear-gradient(to top, rgba(6, 10, 20, 1) 0%, rgba(6, 10, 20, 0.7) 12%, transparent 35%),
+     var(--bg);
+ }
+ .bg-grid {
+@@ -109,17 +113,17 @@ body {
+   inset: 0;
+   z-index: -1;
+   pointer-events: none;
+-  background-image:
+-    linear-gradient(var(--grid-line) 1px, transparent 1px),
+-    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+-  background-size: 48px 48px;
+-  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+-  -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+-  animation: gridDrift 60s linear infinite;
+-}
+-@keyframes gridDrift {
+-  0% { background-position: 0 0, 0 0; }
+-  100% { background-position: 48px 48px, 48px 48px; }
++  background:
++    radial-gradient(1.5px 1.5px at 15% 25%, rgba(255, 255, 255, 0.15), transparent),
++    radial-gradient(1px 1px at 45% 12%, rgba(255, 255, 255, 0.10), transparent),
++    radial-gradient(1.5px 1.5px at 75% 55%, rgba(255, 255, 255, 0.12), transparent),
++    radial-gradient(1px 1px at 35% 75%, rgba(255, 255, 255, 0.08), transparent),
++    radial-gradient(1px 1px at 85% 20%, rgba(255, 255, 255, 0.07), transparent),
++    radial-gradient(1.5px 1.5px at 55% 85%, rgba(255, 255, 255, 0.10), transparent);
++  background-size: 250px 250px;
++  mask-image: none;
++  -webkit-mask-image: none;
++  animation: none;
+ }
+ 
+ /* ── Keyframes ────────────────────────────────────── */
+@@ -129,8 +133,8 @@ body {
+   to { opacity: 1; transform: translateY(0); }
+ }
+ @keyframes titleGlow {
+-  from { filter: drop-shadow(0 0 32px rgba(74, 158, 255, 0.2)); }
+-  to { filter: drop-shadow(0 0 48px rgba(0, 229, 255, 0.35)); }
++  from { filter: drop-shadow(0 0 24px rgba(74, 158, 255, 0.1)); }
++  to { filter: drop-shadow(0 0 36px rgba(125, 211, 252, 0.15)); }
+ }
+ 
+ /* ── Link defaults ─────────────────────────────────── */
+@@ -138,4 +142,4 @@ a { color: var(--accent-2); text-decoration: none; transition: color var(--t); }
+ a:hover { color: var(--accent); }
+ 
+ /* ── Selection ─────────────────────────────────────── */
+-::selection { background: rgba(0, 229, 255, 0.3); color: var(--ink); }
++::selection { background: rgba(74, 158, 255, 0.25); color: var(--ink); }

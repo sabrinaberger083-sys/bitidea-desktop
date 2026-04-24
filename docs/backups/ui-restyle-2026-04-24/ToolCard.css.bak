@@ -1,0 +1,143 @@
+/* ══════════════════════════════════════════════════════════
+   Tool invocation card — terminal-style monospace block.
+   Fits inline inside assistant message bubbles.
+   ══════════════════════════════════════════════════════════ */
+
+.tool-card {
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-sm);
+  background: rgba(15, 25, 50, 0.20);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  overflow: hidden;
+  transition: border-color var(--t);
+}
+.tool-card:hover {
+  border-color: var(--panel-border-strong);
+}
+.tool-ok {
+  border-left: 2px solid var(--success);
+}
+.tool-running {
+  border-left: 2px solid var(--accent-2);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.tool-fail {
+  border-left: 2px solid var(--danger);
+}
+
+.tool-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tool-head:hover {
+  background: rgba(74, 158, 255, 0.05);
+}
+
+.tool-glyph {
+  font-size: 13px;
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.tool-glyph-ok { color: var(--success); }
+.tool-glyph-fail { color: var(--danger); }
+.tool-glyph-running { color: var(--accent-2); }
+
+.tool-name {
+  color: var(--accent-2);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.tool-preview {
+  color: var(--ink-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.tool-caret {
+  color: var(--ink-faint);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.tool-body {
+  border-top: 1px solid var(--panel-border);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(15, 25, 50, 0.15);
+}
+
+.tool-args,
+.tool-output,
+.tool-result-body {
+  margin: 0;
+  padding: 8px 10px;
+  background: rgba(15, 25, 50, 0.25);
+  border: 1px solid rgba(120, 180, 255, 0.05);
+  border-radius: var(--r-xs);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.tool-args {
+  color: var(--ink-dim);
+}
+
+.tool-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tool-result-label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+}
+.tool-result-ok .tool-result-label { color: var(--success); }
+.tool-result-fail .tool-result-label { color: var(--danger); }
+
+.tool-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  margin-left: auto;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-xs);
+  background: rgba(34, 197, 94, 0.08);
+  color: var(--success);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  transition: opacity 0.4s ease;
+}
+.tool-auto-fade {
+  opacity: 0.3;
+}

@@ -6,23 +6,32 @@
 
 :root {
   /* ── Background / surface ───────────────────────── */
-  --bg: #05070f;
-  --bg-2: #0a0e1d;
-  --panel: rgba(14, 20, 40, 0.55);
-  --panel-solid: #0e1428;
-  --panel-border: rgba(120, 180, 255, 0.15);
-  --panel-border-strong: rgba(120, 180, 255, 0.35);
+  --bg: #040711;
+  --bg-2: #0b1330;
+  --bg-3: #111a41;
+  --shell-bg: rgba(11, 16, 38, 0.78);
+  --shell-bg-strong: rgba(16, 22, 54, 0.9);
+  --panel: rgba(22, 30, 68, 0.42);
+  --panel-soft: rgba(17, 23, 54, 0.3);
+  --panel-solid: #141c42;
+  --panel-border: rgba(146, 185, 255, 0.14);
+  --panel-border-strong: rgba(178, 214, 255, 0.28);
+  --panel-highlight: rgba(255, 255, 255, 0.14);
+  --shell-highlight: rgba(201, 223, 255, 0.18);
+  --border-glow: linear-gradient(135deg, rgba(112, 152, 255, 0.45) 0%, rgba(73, 183, 255, 0.12) 50%, rgba(134, 112, 255, 0.16) 100%);
+  --border-glow-subtle: linear-gradient(135deg, rgba(112, 152, 255, 0.18) 0%, rgba(73, 183, 255, 0.06) 100%);
 
   /* ── Text ───────────────────────────────────────── */
-  --ink: #e8eeff;
-  --ink-dim: #8896b8;
-  --ink-faint: #475069;
+  --ink: #f5f8ff;
+  --ink-dim: #b0bddb;
+  --ink-faint: #6e7da5;
 
   /* ── Brand / accent ─────────────────────────────── */
-  --accent: #4A9EFF;      /* primary blue */
-  --accent-2: #00e5ff;    /* cyan highlight */
-  --accent-3: #9333ea;    /* purple (skills) */
-  --accent-purple-light: #c084fc;
+  --accent: #6f8cff;
+  --accent-2: #8fd8ff;
+  --accent-3: #8a73ff;
+  --accent-4: #4db2ff;
+  --accent-purple-light: #c8bbff;
 
   /* ── Semantic ───────────────────────────────────── */
   --success: #22c55e;
@@ -30,26 +39,33 @@
   --danger: #ef4444;
 
   /* ── Effects ────────────────────────────────────── */
-  --glow: 0 0 24px rgba(74, 158, 255, 0.35), 0 0 48px rgba(0, 229, 255, 0.15);
-  --glow-cyan: 0 0 24px rgba(0, 229, 255, 0.4);
-  --grid-line: rgba(74, 158, 255, 0.08);
+  --glow: 0 0 0 1px rgba(126, 167, 255, 0.08), 0 24px 64px rgba(28, 62, 179, 0.22), 0 0 96px rgba(79, 136, 255, 0.16);
+  --glow-strong: 0 0 0 1px rgba(157, 196, 255, 0.16), 0 28px 72px rgba(30, 74, 208, 0.28), 0 0 120px rgba(91, 154, 255, 0.2);
+  --glow-cyan: 0 8px 24px rgba(125, 211, 252, 0.2);
+  --shell-shadow: 0 40px 120px rgba(1, 3, 12, 0.62), 0 24px 48px rgba(20, 43, 120, 0.22);
+  --grid-line: rgba(115, 155, 255, 0.04);
 
   /* ── Gradients ──────────────────────────────────── */
-  --grad-brand: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
-  --grad-title: linear-gradient(135deg, #ffffff 0%, var(--accent) 40%, var(--accent-2) 70%, var(--accent-3) 100%);
-  --grad-skills: linear-gradient(135deg, var(--accent-3) 0%, var(--accent-purple-light) 100%);
+  --grad-brand: linear-gradient(135deg, #95c1ff 0%, #6d80ff 42%, #46b2ff 100%);
+  --grad-title: linear-gradient(135deg, #ffffff 0%, #b9c8ff 36%, #66a5ff 62%, #99e0ff 100%);
+  --grad-skills: linear-gradient(135deg, #7d8cff 0%, #b1b8ff 52%, #9b7bff 100%);
+  --grad-shell: linear-gradient(180deg, rgba(17, 23, 56, 0.96) 0%, rgba(10, 14, 36, 0.92) 52%, rgba(8, 11, 28, 0.95) 100%);
+  --grad-panel: linear-gradient(180deg, rgba(24, 31, 73, 0.9) 0%, rgba(16, 22, 52, 0.84) 100%);
+  --grad-panel-soft: linear-gradient(180deg, rgba(21, 28, 64, 0.78) 0%, rgba(13, 18, 41, 0.72) 100%);
 
   /* ── Typography ─────────────────────────────────── */
-  --font-sans: 'Space Grotesk', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-sans: 'Manrope', 'Noto Sans SC', 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
-  --font-zh: 'Noto Sans SC', 'Space Grotesk', -apple-system, system-ui, sans-serif;
+  --font-zh: 'Noto Sans SC', 'Inter', -apple-system, system-ui, sans-serif;
 
   /* ── Radii ──────────────────────────────────────── */
-  --r-xs: 2px;
-  --r-sm: 3px;
-  --r-md: 4px;
-  --r-lg: 6px;
-  --r-xl: 8px;
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 16px;
+  --r-2xl: 24px;
+  --r-3xl: 32px;
   --r-pill: 99px;
 
   /* ── Spacing scale (8pt grid) ───────────────────── */
@@ -81,6 +97,42 @@ body {
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  position: relative;
+}
+
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+body::before {
+  z-index: -4;
+  background:
+    radial-gradient(circle at 50% 14%, rgba(118, 152, 255, 0.34) 0%, transparent 24%),
+    radial-gradient(circle at 18% 22%, rgba(82, 121, 255, 0.16) 0%, transparent 30%),
+    radial-gradient(circle at 84% 24%, rgba(111, 94, 255, 0.14) 0%, transparent 24%),
+    radial-gradient(2px 2px at 14% 18%, rgba(255, 255, 255, 0.65), transparent 65%),
+    radial-gradient(1px 1px at 27% 8%, rgba(255, 255, 255, 0.5), transparent 60%),
+    radial-gradient(1.5px 1.5px at 45% 22%, rgba(255, 255, 255, 0.52), transparent 64%),
+    radial-gradient(1px 1px at 58% 13%, rgba(255, 255, 255, 0.46), transparent 62%),
+    radial-gradient(1.5px 1.5px at 72% 17%, rgba(255, 255, 255, 0.58), transparent 63%),
+    radial-gradient(1px 1px at 88% 9%, rgba(255, 255, 255, 0.42), transparent 60%),
+    linear-gradient(180deg, #233468 0%, #0f173c 34%, #090d24 58%, #05070f 100%);
+}
+
+body::after {
+  z-index: -3;
+  inset: auto 0 0;
+  height: 38vh;
+  background:
+    radial-gradient(70% 90% at 50% 100%, rgba(220, 175, 116, 0.18) 0%, transparent 34%),
+    linear-gradient(180deg, rgba(8, 11, 24, 0) 0%, rgba(7, 9, 20, 0.28) 28%, rgba(5, 7, 13, 0.96) 100%),
+    linear-gradient(116deg, transparent 0 14%, rgba(11, 15, 30, 0.96) 14% 24%, transparent 24% 29%, rgba(9, 12, 24, 0.98) 29% 44%, transparent 44% 49%, rgba(10, 13, 26, 0.96) 49% 60%, transparent 60% 67%, rgba(7, 10, 18, 0.98) 67% 79%, transparent 79%);
+  clip-path: polygon(0 100%, 0 62%, 8% 70%, 18% 54%, 30% 74%, 42% 48%, 56% 76%, 68% 54%, 82% 73%, 100% 58%, 100% 100%);
+  opacity: 0.9;
 }
 
 /* ── Scrollbars (dark themed) ─────────────────────── */
@@ -92,16 +144,17 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--panel-border-strong); }
 
-/* ── Global animated background ───────────────────── */
+/* ── Global atmospheric background ────────────────── */
 .bg-layer {
   position: fixed;
   inset: 0;
   z-index: -2;
   pointer-events: none;
   background:
-    radial-gradient(ellipse at top, rgba(74, 158, 255, 0.12) 0%, transparent 50%),
-    radial-gradient(ellipse at bottom right, rgba(147, 51, 234, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse at bottom left, rgba(0, 229, 255, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse 120% 58% at 50% -2%, rgba(88, 123, 255, 0.22) 0%, transparent 60%),
+    radial-gradient(ellipse 74% 56% at 12% 82%, rgba(138, 110, 255, 0.12) 0%, transparent 56%),
+    radial-gradient(ellipse 72% 50% at 88% 74%, rgba(77, 160, 255, 0.14) 0%, transparent 58%),
+    linear-gradient(to top, rgba(5, 7, 13, 0.96) 0%, rgba(5, 7, 13, 0.7) 16%, transparent 40%),
     var(--bg);
 }
 .bg-grid {
@@ -109,17 +162,17 @@ body {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background-image:
-    linear-gradient(var(--grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
-  -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
-  animation: gridDrift 60s linear infinite;
-}
-@keyframes gridDrift {
-  0% { background-position: 0 0, 0 0; }
-  100% { background-position: 48px 48px, 48px 48px; }
+  background:
+    radial-gradient(1.5px 1.5px at 15% 25%, rgba(255, 255, 255, 0.14), transparent),
+    radial-gradient(1px 1px at 45% 12%, rgba(255, 255, 255, 0.1), transparent),
+    radial-gradient(1.5px 1.5px at 75% 55%, rgba(255, 255, 255, 0.11), transparent),
+    radial-gradient(1px 1px at 35% 75%, rgba(255, 255, 255, 0.08), transparent),
+    radial-gradient(1px 1px at 85% 20%, rgba(255, 255, 255, 0.07), transparent),
+    radial-gradient(1.5px 1.5px at 55% 85%, rgba(255, 255, 255, 0.09), transparent);
+  background-size: 280px 280px;
+  mask-image: none;
+  -webkit-mask-image: none;
+  animation: none;
 }
 
 /* ── Keyframes ────────────────────────────────────── */
@@ -129,8 +182,8 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 @keyframes titleGlow {
-  from { filter: drop-shadow(0 0 32px rgba(74, 158, 255, 0.2)); }
-  to { filter: drop-shadow(0 0 48px rgba(0, 229, 255, 0.35)); }
+  from { filter: drop-shadow(0 0 24px rgba(74, 158, 255, 0.1)); }
+  to { filter: drop-shadow(0 0 36px rgba(125, 211, 252, 0.15)); }
 }
 
 /* ── Link defaults ─────────────────────────────────── */
@@ -138,4 +191,4 @@ a { color: var(--accent-2); text-decoration: none; transition: color var(--t); }
 a:hover { color: var(--accent); }
 
 /* ── Selection ─────────────────────────────────────── */
-::selection { background: rgba(0, 229, 255, 0.3); color: var(--ink); }
+::selection { background: rgba(74, 158, 255, 0.25); color: var(--ink); }

@@ -10,21 +10,23 @@
 /* ── Buttons ─────────────────────────────────────────────── */
 .btn {
   padding: 12px 22px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   text-decoration: none;
-  border-radius: var(--r-xs);
-  transition: all var(--t);
+  border-radius: 18px;
+  transition: transform var(--t), box-shadow var(--t), border-color var(--t), background var(--t), color var(--t);
   cursor: pointer;
   border: 1px solid transparent;
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  letter-spacing: 0.02em;
+  justify-content: center;
   background: transparent;
   color: var(--ink);
   white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 .btn:disabled {
   opacity: 0.5;
@@ -32,32 +34,36 @@
 }
 
 .btn-sm {
+  min-height: 40px;
   padding: 8px 14px;
   font-size: 12px;
   gap: 8px;
 }
 
 .btn-primary {
-  background: var(--grad-brand);
-  color: var(--bg);
-  font-weight: 600;
-  border-color: transparent;
+  background: linear-gradient(135deg, rgba(158, 194, 255, 0.96) 0%, rgba(106, 127, 255, 0.96) 45%, rgba(72, 185, 255, 0.92) 100%);
+  color: #07111f;
+  border-color: rgba(209, 228, 255, 0.3);
+  box-shadow: 0 14px 32px rgba(57, 96, 212, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.34);
 }
 .btn-primary:not(:disabled):hover {
-  box-shadow: 0 0 32px rgba(0, 229, 255, 0.5);
+  box-shadow: 0 18px 42px rgba(57, 96, 212, 0.34), 0 0 36px rgba(102, 151, 255, 0.24);
   transform: translateY(-1px);
 }
 
 .btn-secondary {
-  background: var(--panel);
+  background: linear-gradient(180deg, rgba(28, 36, 82, 0.78) 0%, rgba(16, 22, 52, 0.72) 100%);
   color: var(--ink);
   border-color: var(--panel-border);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 12px 28px rgba(4, 9, 25, 0.26);
 }
 .btn-secondary:not(:disabled):hover {
-  border-color: var(--accent);
-  color: var(--accent-2);
+  border-color: var(--panel-border-strong);
+  color: var(--ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 16px 32px rgba(22, 48, 132, 0.24);
+  transform: translateY(-1px);
 }
 
 .btn-danger {
@@ -94,7 +100,8 @@
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--accent-2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(125, 211, 252, 0.35), transparent);
+  opacity: 0.6;
 }
 .terminal-header {
   padding: 12px 18px;
@@ -134,16 +141,16 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 14px;
+  padding: 7px 14px;
   border: 1px solid var(--panel-border);
   border-radius: var(--r-pill);
-  background: var(--panel);
+  background: linear-gradient(180deg, rgba(23, 30, 69, 0.74) 0%, rgba(15, 20, 47, 0.7) 100%);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   color: var(--ink-dim);
-  letter-spacing: 0.05em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 .badge-accent { color: var(--accent-2); border-color: var(--panel-border-strong); }
 .badge-success { color: var(--success); border-color: rgba(34, 197, 94, 0.35); }
@@ -164,40 +171,21 @@
 
 /* ── Corner brackets (technical accent) ──────────────────── */
 .bracket {
-  position: absolute;
-  width: 18px; height: 18px;
-  border: 1px solid var(--accent);
-  opacity: 0.5;
-  pointer-events: none;
+  display: none;
 }
-.bracket.tl { top: 10px; left: 10px; border-right: none; border-bottom: none; }
-.bracket.tr { top: 10px; right: 10px; border-left: none; border-bottom: none; }
-.bracket.bl { bottom: 10px; left: 10px; border-right: none; border-top: none; }
-.bracket.br { bottom: 10px; right: 10px; border-left: none; border-top: none; }
 
 /* ── Scanline overlay (subtle CRT vibe) ──────────────────── */
 .scanline {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent 0px,
-    transparent 3px,
-    rgba(255, 255, 255, 0.012) 3px,
-    rgba(255, 255, 255, 0.012) 4px
-  );
-  mix-blend-mode: overlay;
+  display: none;
 }
 
 /* ── Language switcher (EN / 中) ─────────────────────────── */
 .lang-switch {
   display: inline-flex;
   border: 1px solid var(--panel-border);
-  border-radius: var(--r-xs);
+  border-radius: var(--r-md);
   overflow: hidden;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
 }
 .lang-switch button {
@@ -223,23 +211,24 @@
 .textarea,
 .select {
   width: 100%;
-  background: rgba(5, 10, 20, 0.6);
+  background: linear-gradient(180deg, rgba(22, 29, 66, 0.78) 0%, rgba(14, 19, 44, 0.78) 100%);
   border: 1px solid var(--panel-border);
-  border-radius: var(--r-xs);
+  border-radius: 16px;
   color: var(--ink);
   font-family: var(--font-sans);
   font-size: 14px;
   padding: 12px 14px;
-  transition: border-color var(--t), box-shadow var(--t);
+  transition: border-color var(--t), box-shadow var(--t), background var(--t);
   outline: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 .input.mono,
 .textarea.mono { font-family: var(--font-mono); }
 .input:focus,
 .textarea:focus,
 .select:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.15);
+  border-color: var(--panel-border-strong);
+  box-shadow: 0 0 0 3px rgba(100, 143, 255, 0.16), 0 0 32px rgba(77, 124, 255, 0.12);
 }
 .input::placeholder,
 .textarea::placeholder { color: var(--ink-faint); }
@@ -249,9 +238,9 @@
 /* ── Label ────────────────────────────────────────────────── */
 .label {
   display: block;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--accent-2);
   margin-bottom: var(--s-2);
@@ -259,7 +248,7 @@
 
 /* ── Code / markdown tweaks for highlight.js ─────────────── */
 .md pre {
-  background: rgba(5, 10, 20, 0.75);
+  background: rgba(15, 25, 50, 0.25);
   border: 1px solid var(--panel-border);
   border-radius: var(--r-md);
   padding: 14px 16px;
@@ -271,7 +260,7 @@
 .md code {
   font-family: var(--font-mono);
   font-size: 0.92em;
-  background: rgba(74, 158, 255, 0.08);
+  background: rgba(74, 158, 255, 0.06);
   border: 1px solid var(--panel-border);
   border-radius: var(--r-xs);
   padding: 1px 5px;

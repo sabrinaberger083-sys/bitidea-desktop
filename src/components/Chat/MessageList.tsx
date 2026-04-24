@@ -29,19 +29,35 @@ export default function MessageList({ messages, lang, onPreviewArtifact }: Props
   const L = COPY[lang];
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const lastContentLen = useRef(0);
+  const prevCountRef = useRef(0);
+
+  function measureMessage(m: Message): number {
+    let total = m.content.length;
+    if (m.status) total += m.status.length;
+    for (const ev of m.events ?? []) {
+      if (ev.kind === 'text' || ev.kind === 'thinking') {
+        total += ev.text.length;
+      } else {
+        total += ev.name.length + ev.output.length + (ev.preview?.length ?? 0);
+        if (ev.result) total += ev.result.summary.length;
+      }
+    }
+    return total;
+  }
 
   // Auto-scroll on new tokens / new messages, unless the user scrolled up.
   useEffect(() => {
     const el = scrollerRef.current;
     if (!el) return;
-    const last = messages[messages.length - 1];
     const totalLen =
-      messages.reduce((n, m) => n + m.content.length, 0) + messages.length;
+      messages.reduce((n, m) => n + measureMessage(m), 0) + messages.length;
     const nearBottom =
       el.scrollHeight - el.scrollTop - el.clientHeight < 160;
     const grew = totalLen > lastContentLen.current;
+    const newMessagesAdded = messages.length > prevCountRef.current;
     lastContentLen.current = totalLen;
-    if (grew && (nearBottom || last?.role === 'user')) {
+    prevCountRef.current = messages.length;
+    if (newMessagesAdded || (grew && nearBottom)) {
       el.scrollTop = el.scrollHeight;
     }
   }, [messages]);

@@ -18,3 +18,7 @@ node_modules/
 
 # Runtime
 *.log
+
+# Temp/backup
+.codex-backups/
+.tmp/
