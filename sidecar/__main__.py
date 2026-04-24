@@ -18,7 +18,12 @@ import sys
 import threading
 import time
 import urllib.request
+from pathlib import Path
 from typing import Optional
+
+_ENGINE_DIR = str(Path(__file__).resolve().parent.parent / "engine")
+if _ENGINE_DIR not in sys.path:
+    sys.path.insert(0, _ENGINE_DIR)
 
 import uvicorn
 

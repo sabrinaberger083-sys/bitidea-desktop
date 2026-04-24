@@ -1,0 +1,1 @@
+# Bitidea plugins package

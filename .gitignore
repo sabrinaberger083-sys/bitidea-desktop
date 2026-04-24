@@ -16,6 +16,10 @@ node_modules/
 .vscode/
 .idea/
 
+# Engine venv / generated
+/engine/venv/
+/engine/.venv/
+
 # Runtime
 *.log
 
