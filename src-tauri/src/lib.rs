@@ -1,14 +1,15 @@
 mod sidecar;
 
-use sidecar::{SidecarState, get_sidecar_info, kill, spawn};
+use sidecar::{get_sidecar_info, kill, spawn, SidecarState};
 use tauri::RunEvent;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 fn chat_migrations() -> Vec<Migration> {
-    vec![Migration {
-        version: 1,
-        description: "create conversations, messages and FTS tables",
-        sql: r#"
+    vec![
+        Migration {
+            version: 1,
+            description: "create conversations, messages and FTS tables",
+            sql: r#"
 CREATE TABLE conversations (
   id          TEXT PRIMARY KEY,
   title       TEXT NOT NULL,
@@ -37,12 +38,12 @@ CREATE VIRTUAL TABLE messages_fts USING fts5(
   tokenize = 'unicode61 remove_diacritics 2'
 );
 "#,
-        kind: MigrationKind::Up,
-    },
-    Migration {
-        version: 2,
-        description: "add projects table and link conversations",
-        sql: r#"
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 2,
+            description: "add projects table and link conversations",
+            sql: r#"
 CREATE TABLE projects (
   id          TEXT PRIMARY KEY,
   name        TEXT NOT NULL,
@@ -55,20 +56,20 @@ CREATE INDEX idx_project_path ON projects (path);
 ALTER TABLE conversations ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
 CREATE INDEX idx_conv_project ON conversations (project_id);
 "#,
-        kind: MigrationKind::Up,
-    },
-    Migration {
-        version: 3,
-        description: "add attachments_json column to messages",
-        sql: r#"
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 3,
+            description: "add attachments_json column to messages",
+            sql: r#"
 ALTER TABLE messages ADD COLUMN attachments_json TEXT;
 "#,
-        kind: MigrationKind::Up,
-    },
-    Migration {
-        version: 4,
-        description: "add assistants and folders tables",
-        sql: r#"
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 4,
+            description: "add assistants and folders tables",
+            sql: r#"
 CREATE TABLE assistants (
   id          TEXT PRIMARY KEY,
   name        TEXT NOT NULL,
@@ -92,8 +93,9 @@ ALTER TABLE conversations ADD COLUMN folder_id TEXT REFERENCES folders(id) ON DE
 ALTER TABLE conversations ADD COLUMN assistant_id TEXT REFERENCES assistants(id) ON DELETE SET NULL;
 CREATE INDEX idx_conv_folder ON conversations (folder_id);
 "#,
-        kind: MigrationKind::Up,
-    }]
+            kind: MigrationKind::Up,
+        },
+    ]
 }
 
 #[tauri::command]
@@ -133,11 +135,18 @@ pub fn run() {
                 .build(),
         )
         .manage(state)
-        .setup(move |_app| {
-            spawn(&state_for_setup);
+        .setup(move |app| {
+            let app_handle = app.handle();
+            spawn(&app_handle, &state_for_setup);
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_sidecar_info, write_text_file, write_binary_file, read_text_file, read_binary_file])
+        .invoke_handler(tauri::generate_handler![
+            get_sidecar_info,
+            write_text_file,
+            write_binary_file,
+            read_text_file,
+            read_binary_file
+        ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(move |_app, event| {

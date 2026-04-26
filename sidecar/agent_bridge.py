@@ -31,14 +31,16 @@ we use is:
   ``resolve_gateway_approval(session_key, choice)`` — "once" / "always" /
   "deny".
 
-The v0.2 UI surfaces *allow* + *remember (60s)*. We translate:
+The v0.2 UI surfaces *allow* + approval scope. We translate:
 
-  * ``allow=true,  remember=false`` -> ``"once"``
-  * ``allow=true,  remember=true``  -> cache in the 60s approval cache AND
+  * ``allow=true,  mode="once"``     -> ``"once"``
+  * ``allow=true,  mode="remember"`` -> cache in the 60s approval cache AND
     send ``"once"`` to the underlying agent (we do our own TTL cache rather
     than using the agent's permanent allowlist, so checkbox state stays
     ephemeral the way users expect).
-  * ``allow=false``                 -> ``"deny"``
+  * ``allow=true,  mode="always"``   -> ``"always"`` to the underlying
+    agent, without touching the 60-second cache.
+  * ``allow=false``                  -> ``"deny"``
 
 The 60-second cache is keyed on ``(tool_name, sha256(json(args)))`` and short-
 circuits the notify callback entirely for repeat calls.
@@ -66,6 +68,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -83,6 +86,7 @@ logger = logging.getLogger("sidecar.agent_bridge")
 # ---------------------------------------------------------------------------
 
 Severity = Literal["read", "write", "destructive", "network", "unknown"]
+ApprovalMode = Literal["once", "remember", "always"]
 
 _READ_TOOLS = {"read_file", "list_files", "grep", "glob"}
 _WRITE_TOOLS = {"write_file", "edit_file", "create_file"}
@@ -98,6 +102,27 @@ _SHELL_DESTRUCTIVE_EXACT = {"rm", "mv", "dd"}
 _SHELL_NETWORK_FIRST_TOKENS = {"curl", "wget", "ssh", "scp", "nc", "telnet"}
 _SHELL_WRITE_FIRST_TOKENS = {"mkdir", "touch", "cp", "vim", "nano", "code"}
 _SHELL_READ_FIRST_TOKENS = {"ls", "cat", "head", "tail", "grep", "pwd", "echo", "which"}
+_ANSI_ESCAPE_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+_STATUS_WHITESPACE_RE = re.compile(r"\s+")
+_STATUS_LEADING_SYMBOLS_RE = re.compile(r"^[^A-Za-z]+")
+_STATUS_THINKING_VERBS = {
+    "pondering",
+    "contemplating",
+    "musing",
+    "cogitating",
+    "ruminating",
+    "deliberating",
+    "mulling",
+    "reflecting",
+    "processing",
+    "reasoning",
+    "analyzing",
+    "computing",
+    "synthesizing",
+    "formulating",
+    "brainstorming",
+}
+_STATUS_MAX_LEN = 220
 
 
 def _classify_shell(command: str) -> Severity:
@@ -169,6 +194,28 @@ def classify_tool_severity(tool_name: str, args: Dict[str, Any]) -> Severity:
     return "unknown"
 
 
+def sanitize_status_text(text: Any) -> str:
+    """Normalize internal agent status text for frontend display."""
+    raw = _ANSI_ESCAPE_RE.sub("", str(text or "")).replace("\r", "\n").strip()
+    if not raw:
+        return ""
+
+    collapsed = _STATUS_WHITESPACE_RE.sub(" ", raw)
+    lowered = collapsed.lower()
+
+    if lowered.startswith("(auto-allowed cached approval:"):
+        return "Using remembered approval"
+
+    stripped = _STATUS_LEADING_SYMBOLS_RE.sub("", lowered)
+    first_token = stripped.split(None, 1)[0].rstrip(".…!?,;:") if stripped else ""
+    if first_token in _STATUS_THINKING_VERBS:
+        return "Thinking..."
+
+    if len(collapsed) > _STATUS_MAX_LEN:
+        return collapsed[: _STATUS_MAX_LEN - 3].rstrip() + "..."
+    return collapsed
+
+
 # ---------------------------------------------------------------------------
 # Approval state
 # ---------------------------------------------------------------------------
@@ -234,15 +281,29 @@ class ApprovalRegistry:
             self._pending[req.request_id] = req
         return req
 
-    def resolve(self, request_id: str, allow: bool, remember: bool) -> bool:
+    def resolve(
+        self,
+        request_id: str,
+        allow: bool,
+        remember: bool = False,
+        mode: Optional[ApprovalMode] = None,
+    ) -> bool:
         """Called from the /approval HTTP handler. Returns True if we matched."""
         with self._lock:
             req = self._pending.pop(request_id, None)
         if req is None:
             return False
-        req.remember = bool(remember)
-        req.result = "once" if allow else "deny"
-        if allow and remember:
+        selected_mode: ApprovalMode = mode or ("remember" if remember else "once")
+        if selected_mode not in {"once", "remember", "always"}:
+            selected_mode = "once"
+        req.remember = allow and selected_mode == "remember"
+        if not allow:
+            req.result = "deny"
+        elif selected_mode == "always":
+            req.result = "always"
+        else:
+            req.result = "once"
+        if allow and selected_mode == "remember":
             key = self._cache_key(req.tool_name, req.args)
             with self._lock:
                 self._remember[key] = _RememberEntry(
@@ -401,6 +462,7 @@ class AgentRunner:
         messages: List[Dict[str, Any]],
         project_path: Optional[str] = None,
         system_prompt: Optional[str] = None,
+        ui_lang: Optional[str] = None,
     ) -> None:
         self.provider = provider
         self.model = model
@@ -410,10 +472,23 @@ class AgentRunner:
         )
         self.messages = messages
         self.project_path = project_path
-        self.system_prompt = system_prompt or (
+        self.ui_lang = ui_lang or "en"
+        base_system_prompt = system_prompt or (
             "你是 Bitidea Agent，由小小思路信息科技有限公司开发的智能 AI 助手。"
             "当用户使用中文时，始终用流畅自然的中文回复，不要出现截断、乱码或不完整的句子。"
             "回答要准确、完整、有条理。"
+        )
+        lang_directive = (
+            "界面语言为简体中文。最终回答、思考过程、工具调用说明、阶段性状态提示都必须使用简体中文。"
+            "除非必须保留用户原文、代码、命令、路径、报错、API 名称或专有名词，否则不要输出英文思考内容。"
+            if self.ui_lang == "zh"
+            else
+            "The interface language is English. Keep surfaced answers, thinking text, tool commentary, and status messages in English."
+        )
+        self.system_prompt = (
+            f"{base_system_prompt.rstrip()}\n\n{lang_directive}"
+            if base_system_prompt.strip()
+            else lang_directive
         )
 
         self._loop: Optional[asyncio.AbstractEventLoop] = None
@@ -608,6 +683,7 @@ class AgentRunner:
         role: str,
         image_offset: int = 0,
         total_images: int = 0,
+        show_progress: bool = True,
     ) -> tuple[str, int]:
         if not self._content_has_image_parts(content):
             return self._collapse_content_to_text(content), 0
@@ -651,11 +727,12 @@ class AgentRunner:
                     else str(image_data or "")
                 )
                 processed_images += 1
-                current_index = image_offset + processed_images
-                if total_images > 0:
-                    self._push("status", {"text": f"正在识别图片 {current_index}/{total_images}..."})
-                else:
-                    self._push("status", {"text": "正在识别图片..."})
+                if show_progress:
+                    current_index = image_offset + processed_images
+                    if total_images > 0:
+                        self._push_status(f"正在识别图片 {current_index}/{total_images}...")
+                    else:
+                        self._push_status("正在识别图片...")
 
                 if not image_source:
                     image_notes.append(f"[{role_label}附带了一张图片，但没有拿到可读取的图片源。]")
@@ -728,7 +805,8 @@ class AgentRunner:
         processed_images = 0
         transformed: List[Dict[str, Any]] = []
         try:
-            for msg in messages:
+            last_index = len(messages) - 1
+            for index, msg in enumerate(messages):
                 if not isinstance(msg, dict):
                     transformed.append(msg)
                     continue
@@ -741,12 +819,13 @@ class AgentRunner:
                     role=str(msg.get("role", "user") or "user"),
                     image_offset=processed_images,
                     total_images=total_images,
+                    show_progress=index == last_index,
                 )
                 processed_images += consumed
                 transformed.append({**msg, "content": rewritten})
             return transformed
         finally:
-            self._push("status", {"text": ""})
+            self._push_status("")
 
     # ---- callback factory --------------------------------------------------
 
@@ -761,6 +840,10 @@ class AgentRunner:
         except RuntimeError:
             # Loop shut down before we could enqueue — drop silently.
             pass
+
+    def _push_status(self, text: Any) -> None:
+        """Push a frontend-friendly status frame."""
+        self._push("status", {"text": sanitize_status_text(text)})
 
     def _make_callbacks(self) -> Dict[str, Any]:
         """Build the callback bundle AIAgent expects.
@@ -788,7 +871,7 @@ class AgentRunner:
                 text = (preview or "").strip()
                 if text and not reasoning_streamed:
                     reasoning_streamed = True
-                    self._push("status", {"text": ""})
+                    self._push_status("")
                     self._push("thinking", {"text": text})
                 return
             if event_type != "tool.started":
@@ -836,14 +919,14 @@ class AgentRunner:
             # it into the THINKING panel.
             if reasoning_streamed and not text:
                 return
-            self._push("status", {"text": str(text or "")})
+            self._push_status(text)
 
         def reasoning(text: str) -> None:
             nonlocal reasoning_streamed
             if not text:
                 return
             reasoning_streamed = True
-            self._push("status", {"text": ""})
+            self._push_status("")
             self._push("thinking", {"text": text})
 
         def step(api_call_count: int, prev_tools: Any = None) -> None:
@@ -885,7 +968,7 @@ class AgentRunner:
         def status(kind: str, message: str = "") -> None:
             text = message if message else (kind if kind else "")
             if text:
-                self._push("status", {"text": str(text)})
+                self._push_status(text)
 
         return dict(
             stream_delta_callback=stream_delta,
@@ -923,10 +1006,7 @@ class AgentRunner:
                 from tools import approval as _approval
 
                 _approval.resolve_gateway_approval(self._session_key, "once")
-                self._push(
-                    "status",
-                    {"text": f"(auto-allowed cached approval: {tool_name})"},
-                )
+                self._push_status(f"(auto-allowed cached approval: {tool_name})")
                 return
 
             req = APPROVALS.register_pending(tool_name, args)
@@ -1032,12 +1112,15 @@ class AgentRunner:
                 history_dicts: List[Dict[str, Any]] = [
                     {"role": m["role"], "content": m["content"]} for m in history
                 ]
-                agent.run_conversation(
+                result = agent.run_conversation(
                     user_message=user_content,
                     system_message=self.system_prompt,
                     conversation_history=history_dicts or None,
                     persist_user_message=persist_text,
                 )
+                final_response = str((result or {}).get("final_response") or "").strip()
+                if final_response and final_response != "(empty)":
+                    self._push("final_response", {"text": final_response})
             finally:
                 try:
                     _approval.reset_current_session_key(token)

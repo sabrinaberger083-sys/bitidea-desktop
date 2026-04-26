@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Button from '../common/Button';
-import type { ApprovalRequest, Lang, Severity } from '../../types';
+import type { ApprovalMode, ApprovalRequest, Lang, Severity } from '../../types';
 import { renderToolPreview } from './renderToolPreview';
 import './ApprovalModal.css';
 
@@ -62,18 +62,85 @@ const SEV_CONFIG: Record<
 };
 
 const SHARED_COPY = {
-  en: { remember: 'Remember for 60 seconds', allow: 'Allow', deny: 'Deny', hintAllow: '↵ / ⌘↵', hintDeny: 'Esc' },
-  zh: { remember: '记住 60 秒', allow: '允许', deny: '拒绝', hintAllow: '↵ / ⌘↵', hintDeny: 'Esc' },
+  en: {
+    remember: 'Remember for 60 seconds',
+    always: 'Always allow',
+    allow: 'Allow',
+    deny: 'Deny',
+    hintDeny: 'Esc',
+    persistLabel: 'Approval scope',
+  },
+  zh: {
+    remember: '记住 60 秒',
+    always: '永远允许',
+    allow: '允许',
+    deny: '拒绝',
+    hintDeny: 'Esc',
+    persistLabel: '授权范围',
+  },
 };
 
 interface Props {
   request: ApprovalRequest | null;
   lang: Lang;
-  onResolve: (allow: boolean, remember: boolean) => void;
+  onResolve: (allow: boolean, mode: ApprovalMode) => void;
+}
+
+function SeverityIcon({ severity }: { severity: Severity }) {
+  if (severity === 'read') {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.2" />
+        <path d="M8 6.25v3.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        <circle cx="8" cy="4.6" r=".7" fill="currentColor" />
+      </svg>
+    );
+  }
+
+  if (severity === 'network') {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path
+          d="M3 8h8.5M8.75 4.25 12.5 8l-3.75 3.75"
+          stroke="currentColor"
+          strokeWidth="1.25"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
+  if (severity === 'destructive') {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path
+          d="M8 2.5 13.25 12h-10.5z"
+          stroke="currentColor"
+          strokeWidth="1.2"
+          strokeLinejoin="round"
+        />
+        <path d="M8 6v2.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        <circle cx="8" cy="10.8" r=".7" fill="currentColor" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M4 11.8 11.9 3.9M10.8 3.25h2v2M4.2 12.75h-1v-1l6.45-6.45 2 2z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 export default function ApprovalModal({ request, lang, onResolve }: Props) {
-  const [remember, setRemember] = useState(false);
+  const [mode, setMode] = useState<ApprovalMode>('once');
   const allowRef = useRef<HTMLButtonElement | null>(null);
   const denyRef = useRef<HTMLButtonElement | null>(null);
 
@@ -82,11 +149,14 @@ export default function ApprovalModal({ request, lang, onResolve }: Props) {
   const copy = tier.copy[lang];
   const shared = SHARED_COPY[lang];
   const isDestructive = severity === 'destructive';
+  const isApplePlatform =
+    typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const allowHint = isApplePlatform ? '↵ / ⌘↵' : '↵ / Ctrl+↵';
 
   // Reset remember + focus appropriate button per severity.
   useEffect(() => {
     if (!request) return;
-    setRemember(false);
+    setMode('once');
     const target = isDestructive ? denyRef : allowRef;
     const t = setTimeout(() => target.current?.focus(), 0);
     return () => clearTimeout(t);
@@ -98,7 +168,7 @@ export default function ApprovalModal({ request, lang, onResolve }: Props) {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onResolve(false, false);
+        onResolve(false, 'once');
         return;
       }
       if (isDestructive) return; // no keyboard Allow for destructive.
@@ -107,12 +177,12 @@ export default function ApprovalModal({ request, lang, onResolve }: Props) {
         (e.metaKey || e.ctrlKey || document.activeElement === allowRef.current)
       ) {
         e.preventDefault();
-        onResolve(true, remember);
+        onResolve(true, mode);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [request, remember, onResolve, isDestructive]);
+  }, [request, mode, onResolve, isDestructive]);
 
   if (!request) return null;
 
@@ -125,7 +195,7 @@ export default function ApprovalModal({ request, lang, onResolve }: Props) {
     >
       <div className={`approve-card ${tier.cls}`}>
         <div className="approve-head">
-          <span className="approve-glyph" aria-hidden>{tier.glyph}</span>
+          <span className="approve-glyph" aria-hidden><SeverityIcon severity={severity} /></span>
           <span id="approve-title" className="approve-title">{copy.title}</span>
         </div>
         <p className="approve-sub">{copy.sub}</p>
@@ -135,14 +205,32 @@ export default function ApprovalModal({ request, lang, onResolve }: Props) {
         </div>
 
         {!isDestructive && (
-          <label className="approve-remember">
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-            />
-            <span>{shared.remember}</span>
-          </label>
+          <div
+            className="approve-options"
+            role="group"
+            aria-label={shared.persistLabel}
+          >
+            <label
+              className={`approve-option ${mode === 'remember' ? 'approve-option-active' : ''}`}
+            >
+              <input
+                type="checkbox"
+                checked={mode === 'remember'}
+                onChange={(e) => setMode(e.target.checked ? 'remember' : 'once')}
+              />
+              <span>{shared.remember}</span>
+            </label>
+            <label
+              className={`approve-option ${mode === 'always' ? 'approve-option-active' : ''}`}
+            >
+              <input
+                type="checkbox"
+                checked={mode === 'always'}
+                onChange={(e) => setMode(e.target.checked ? 'always' : 'once')}
+              />
+              <span>{shared.always}</span>
+            </label>
+          </div>
         )}
 
         <div className="approve-actions">
@@ -150,7 +238,7 @@ export default function ApprovalModal({ request, lang, onResolve }: Props) {
             ref={denyRef}
             variant={isDestructive ? 'primary' : 'secondary'}
             size="sm"
-            onClick={() => onResolve(false, false)}
+            onClick={() => onResolve(false, 'once')}
           >
             {shared.deny}
             <span className="approve-hint">{shared.hintDeny}</span>
@@ -159,7 +247,7 @@ export default function ApprovalModal({ request, lang, onResolve }: Props) {
             ref={allowRef}
             variant={isDestructive ? 'secondary' : 'primary'}
             size="sm"
-            onClick={() => onResolve(true, remember)}
+            onClick={() => onResolve(true, mode)}
             onKeyDown={(e) => {
               if (isDestructive && (e.key === 'Enter' || e.key === ' ')) {
                 e.preventDefault();
@@ -172,7 +260,7 @@ export default function ApprovalModal({ request, lang, onResolve }: Props) {
             }
           >
             {shared.allow}
-            {!isDestructive && <span className="approve-hint">{shared.hintAllow}</span>}
+            {!isDestructive && <span className="approve-hint">{allowHint}</span>}
           </Button>
         </div>
       </div>

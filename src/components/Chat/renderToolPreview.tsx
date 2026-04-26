@@ -111,9 +111,11 @@ export function renderToolPreview(
   args: Record<string, unknown>,
 ): ReactNode {
   const name = (toolName ?? '').toLowerCase();
+  const command = firstString(args, ['command']);
+  if (command) {
+    return renderShell(command);
+  }
   if (SHELL_TOOL_NAMES.has(name)) {
-    const cmd = firstString(args, ['command']);
-    if (cmd) return renderShell(cmd);
     return renderJson(args);
   }
   if (FILE_WRITE_TOOL_NAMES.has(name)) {
@@ -134,9 +136,12 @@ export function renderToolPreviewLine(
   args: Record<string, unknown>,
 ): string {
   const name = (toolName ?? '').toLowerCase();
+  const command = firstString(args, ['command']);
+  if (command) {
+    return `$ ${command}`;
+  }
   if (SHELL_TOOL_NAMES.has(name)) {
-    const cmd = firstString(args, ['command']);
-    if (cmd) return `$ ${cmd}`;
+    return '';
   }
   if (FILE_WRITE_TOOL_NAMES.has(name)) {
     const path = firstString(args, ['path', 'file_path', 'filename']);

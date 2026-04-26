@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { invoke } from '@tauri-apps/api/core';
 import type { Lang } from '../../types';
+import { basename } from '../../lib/path';
 import './MarkdownEditor.css';
 
 interface Props {
@@ -33,7 +34,7 @@ export default function MarkdownEditor({ filePath, lang, onClose }: Props) {
   const t = COPY[lang];
 
   const dirty = content !== savedContent;
-  const filename = filePath.split('/').pop() || filePath;
+  const filename = basename(filePath);
 
   /* Load file on mount */
   useEffect(() => {

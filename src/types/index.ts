@@ -93,6 +93,7 @@ export interface StatusEvent {
 }
 
 export type Severity = 'read' | 'write' | 'destructive' | 'network' | 'unknown';
+export type ApprovalMode = 'once' | 'remember' | 'always';
 
 /** A dangerous command that needs the user's permission before it runs. */
 export interface ApprovalRequest {

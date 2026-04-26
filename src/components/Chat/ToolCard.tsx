@@ -13,7 +13,7 @@ export default function ToolCard({ tool }: Props) {
   const isSkillView = normalizedToolName === 'skill_view';
   const isRunning = tool.result === undefined;
   const ok = tool.result?.ok ?? true;
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(() => !isRunning);
   const outputRef = useRef<HTMLPreElement | null>(null);
 
   const statusGlyph = isRunning ? '◇' : ok ? '✓' : '✕';
@@ -36,9 +36,15 @@ export default function ToolCard({ tool }: Props) {
     : '';
 
   useEffect(() => {
-    if (!isRunning || !outputRef.current) return;
+    if (!isRunning || !expanded || !outputRef.current) return;
     outputRef.current.scrollTop = outputRef.current.scrollHeight;
-  }, [tool.output, isRunning]);
+  }, [tool.output, isRunning, expanded]);
+
+  useEffect(() => {
+    if (tool.result && tool.result.ok === false) {
+      setExpanded(true);
+    }
+  }, [tool.result]);
 
   return (
     <div className={`tool-card tool-${statusClass}`}>
@@ -86,7 +92,7 @@ export default function ToolCard({ tool }: Props) {
               <pre
                 ref={outputRef}
                 className={`tool-output ${!hasOutput ? 'tool-output-empty' : ''}`}
-                aria-live={isRunning ? 'polite' : undefined}
+                aria-live={isRunning && expanded ? 'polite' : undefined}
               >
                 {hasOutput ? tool.output : '等待工具输出...'}
                 {isRunning && <span className="tool-output-caret" aria-hidden>▍</span>}

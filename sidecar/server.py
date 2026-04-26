@@ -103,12 +103,14 @@ class ChatIn(BaseModel):
     messages: list[ChatMessage]
     project_path: Optional[str] = None
     system_prompt: Optional[str] = None
+    ui_lang: Optional[Literal["en", "zh"]] = None
 
 
 class ApprovalIn(BaseModel):
     request_id: str
     allow: bool
     remember: bool = False
+    mode: Optional[Literal["once", "remember", "always"]] = None
 
 
 class McpServerIn(BaseModel):
@@ -402,6 +404,7 @@ async def chat(body: ChatIn, request: Request) -> StreamingResponse:
         messages=messages,
         project_path=body.project_path,
         system_prompt=body.system_prompt,
+        ui_lang=body.ui_lang,
     )
 
     async def gen() -> AsyncIterator[bytes]:
@@ -435,14 +438,22 @@ async def chat(body: ChatIn, request: Request) -> StreamingResponse:
 async def approval(body: ApprovalIn) -> dict:
     """Resolve a pending ``approval_request`` SSE event.
 
-    * ``allow=true, remember=false`` -> allow this one tool call.
-    * ``allow=true, remember=true``  -> allow + cache ``(tool_name, sha256(args))``
+    * ``allow=true, mode="once"``     -> allow this one tool call.
+    * ``allow=true, mode="remember"`` -> allow + cache ``(tool_name, sha256(args))``
       for 60 seconds. Repeat identical calls skip the modal.
+    * ``allow=true, mode="always"``   -> permanently allow for the current agent
+      session via the underlying gateway approval mechanism.
     * ``allow=false`` -> deny.
 
     Returns ``{ok: true}`` if we matched a pending request, otherwise 404.
     """
-    matched = APPROVALS.resolve(body.request_id, body.allow, body.remember)
+    mode = body.mode or ("remember" if body.remember else "once")
+    matched = APPROVALS.resolve(
+        body.request_id,
+        body.allow,
+        remember=body.remember,
+        mode=mode,
+    )
     if not matched:
         raise HTTPException(404, "no pending approval with that request_id")
     return {"ok": True}

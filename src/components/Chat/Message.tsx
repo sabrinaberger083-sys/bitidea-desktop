@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import type { AssistantEvent, Attachment, Message, ThinkingEvent } from '../../types';
+import type { AssistantEvent, Attachment, Lang, Message, ThinkingEvent } from '../../types';
 import type { Artifact } from '../../lib/artifacts';
 import { extractRenderableArtifacts, isRenderable } from '../../lib/artifacts';
 import { synthesizeSpeech } from '../../lib/sidecar';
@@ -14,10 +14,59 @@ import './Message.css';
 
 interface Props {
   message: Message;
+  lang: Lang;
   onPreviewArtifact?: (artifact: Artifact) => void;
 }
 
+const STATUS_COPY = {
+  en: {
+    thinking: 'Thinking...',
+    rememberedApproval: 'Using remembered approval',
+  },
+  zh: {
+    thinking: '正在思考...',
+    rememberedApproval: '已使用记忆授权',
+  },
+} as const;
+
+function localizeStatusText(text: string | undefined, lang: Lang): string | undefined {
+  if (!text) return text;
+  const normalized = text.trim();
+  if (!normalized) return text;
+
+  if (normalized === 'Thinking...' || normalized === '正在思考...' || normalized === '正在思考…') {
+    return STATUS_COPY[lang].thinking;
+  }
+
+  if (normalized === 'Using remembered approval' || normalized === '已使用记忆授权') {
+    return STATUS_COPY[lang].rememberedApproval;
+  }
+
+  return text;
+}
+
 type RenderedEvent = Exclude<AssistantEvent, ThinkingEvent>;
+
+function normalizeMarkdownText(text: string): string {
+  if (!text.includes('`')) return text;
+
+  const isolatedTickPositions: number[] = [];
+  for (let i = 0; i < text.length; i += 1) {
+    if (
+      text[i] === '`'
+      && text[i - 1] !== '\\'
+      && text[i - 1] !== '`'
+      && text[i + 1] !== '`'
+    ) {
+      isolatedTickPositions.push(i);
+    }
+  }
+
+  if (isolatedTickPositions.length % 2 === 0) return text;
+
+  const lastTick = isolatedTickPositions[isolatedTickPositions.length - 1];
+  return `${text.slice(0, lastTick)}\\${text.slice(lastTick)}`;
+}
 
 /**
  * Build a custom `pre` renderer that detects renderable code blocks
@@ -95,6 +144,7 @@ function MarkdownBlock({
   onPreview?: (artifact: Artifact) => void;
 }) {
   const PreComponent = usePreWithPreview(artifacts, onPreview);
+  const normalizedText = useMemo(() => normalizeMarkdownText(text), [text]);
 
   return (
     <ReactMarkdown
@@ -102,7 +152,7 @@ function MarkdownBlock({
       rehypePlugins={[rehypeHighlight]}
       components={onPreview ? { pre: PreComponent as any } : undefined}
     >
-      {text}
+      {normalizedText}
     </ReactMarkdown>
   );
 }
@@ -112,7 +162,10 @@ function MarkdownBlock({
 function TextBubble({
   message,
   onPreviewArtifact,
-}: Props) {
+}: {
+  message: Message;
+  onPreviewArtifact?: (artifact: Artifact) => void;
+}) {
   const text = message.content || (message.streaming ? '▍' : '');
   const artifacts = useMemo(
     () => (onPreviewArtifact ? extractRenderableArtifacts(text) : []),
@@ -144,11 +197,13 @@ function TextBubble({
  *  block so `- item` lists etc. render correctly. */
 function EventStream({
   events,
+  lang,
   streaming,
   statusText,
   onPreviewArtifact,
 }: {
   events: AssistantEvent[];
+  lang: Lang;
   streaming?: boolean;
   statusText?: string;
   onPreviewArtifact?: (artifact: Artifact) => void;
@@ -232,6 +287,7 @@ function EventStream({
         <div key="thinking-panel" className="msg-event">
           <ThinkingBlock
             text={thinkingText}
+            lang={lang}
             live={!!streaming}
             statusText={statusText}
           />
@@ -297,9 +353,10 @@ function SpeakButton({ text }: { text: string }) {
   );
 }
 
-function MessageComponent({ message, onPreviewArtifact }: Props) {
+function MessageComponent({ message, lang, onPreviewArtifact }: Props) {
   const isUser = message.role === 'user';
   const hasEvents = !isUser && ((message.events?.length ?? 0) > 0 || !!message.streaming);
+  const localizedStatus = localizeStatusText(message.status, lang);
   const userText = isUser ? (message.content ?? '').trim() : '';
   const compactUserBubble = isUser
     && !message.attachments?.length
@@ -323,7 +380,7 @@ function MessageComponent({ message, onPreviewArtifact }: Props) {
         {!isUser && (message.step || message.status) && (
           <div className="msg-meta">
             <StepIndicator step={message.step} active={!!message.streaming} />
-            <StatusLine text={message.streaming ? message.status : undefined} />
+            <StatusLine text={message.streaming ? localizedStatus : undefined} />
           </div>
         )}
         <div className={bubbleClassName}>
@@ -337,8 +394,9 @@ function MessageComponent({ message, onPreviewArtifact }: Props) {
           ) : hasEvents ? (
             <EventStream
               events={message.events!}
+              lang={lang}
               streaming={message.streaming}
-              statusText={message.status}
+              statusText={localizedStatus}
               onPreviewArtifact={onPreviewArtifact}
             />
           ) : (
@@ -360,7 +418,7 @@ export default memo(MessageComponent, (a, b) => {
   const m2 = b.message;
   // Cheap identity check first; then compare the shallow fields that our
   // renderer actually reads.
-  if (m1 === m2 && a.onPreviewArtifact === b.onPreviewArtifact) return true;
+  if (m1 === m2 && a.lang === b.lang && a.onPreviewArtifact === b.onPreviewArtifact) return true;
   return (
     m1.id === m2.id &&
     m1.content === m2.content &&
@@ -369,6 +427,7 @@ export default memo(MessageComponent, (a, b) => {
     m1.step === m2.step &&
     m1.status === m2.status &&
     m1.attachments === m2.attachments &&
+    a.lang === b.lang &&
     a.onPreviewArtifact === b.onPreviewArtifact
   );
 });

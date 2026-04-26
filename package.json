@@ -7,7 +7,14 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "build:windows:sidecar": "powershell -ExecutionPolicy Bypass -File scripts/build-sidecar-win.ps1",
+    "test:windows:sidecar": "powershell -ExecutionPolicy Bypass -File scripts/smoke-sidecar-win.ps1",
+    "build:windows:installer": "npm run build:windows:sidecar && npm run test:windows:sidecar && tauri build --bundles nsis --ci --no-sign",
+    "build:windows:portable": "npm run build:windows:sidecar && npm run test:windows:sidecar && tauri build --no-bundle --ci && powershell -ExecutionPolicy Bypass -File scripts/package-portable-win.ps1",
+    "dist:windows": "npm run build:windows:installer && npm run build:windows:portable",
+    "dist:windows:installer": "npm run build:windows:installer",
+    "dist:windows:portable": "npm run build:windows:portable"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

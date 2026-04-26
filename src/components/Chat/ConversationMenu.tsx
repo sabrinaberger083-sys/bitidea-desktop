@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ConversationWithPreview, Folder, Lang } from '../../types';
 
 interface Props {
@@ -27,6 +27,19 @@ export default function ConversationMenu({
   const ref = useRef<HTMLDivElement | null>(null);
   const [showFolderSub, setShowFolderSub] = useState(false);
   const [showExportSub, setShowExportSub] = useState(false);
+  const [position, setPosition] = useState({ top: y, left: x });
+  const [submenuSide, setSubmenuSide] = useState<'right' | 'left'>('right');
+
+  useLayoutEffect(() => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const margin = 12;
+    const nextLeft = Math.min(Math.max(margin, x), window.innerWidth - rect.width - margin);
+    const nextTop = Math.min(Math.max(margin, y), window.innerHeight - rect.height - margin);
+    const roomOnRight = window.innerWidth - (nextLeft + rect.width) >= 176;
+    setPosition({ top: nextTop, left: nextLeft });
+    setSubmenuSide(roomOnRight ? 'right' : 'left');
+  }, [x, y, showFolderSub, showExportSub]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -43,7 +56,7 @@ export default function ConversationMenu({
   }, [onClose]);
 
   return (
-    <div ref={ref} className="conv-menu" style={{ top: y, left: x }}>
+    <div ref={ref} className="conv-menu" style={position}>
       <button type="button" onClick={() => onRename(conv.id)}>{L.rename}</button>
       <button type="button" onClick={() => onPin(conv.id, !conv.pinned)}>
         {conv.pinned ? L.unpin : L.pin}
@@ -57,7 +70,7 @@ export default function ConversationMenu({
           {L.exportAs} <span style={{ float: 'right' }}>→</span>
         </button>
         {showExportSub && (
-          <div className="conv-menu-sub">
+          <div className={`conv-menu-sub ${submenuSide === 'left' ? 'conv-menu-sub-left' : ''}`}>
             <button type="button" onClick={() => onExport(conv.id, 'md')}>
               {L.exportMd}
             </button>
@@ -80,7 +93,7 @@ export default function ConversationMenu({
             {L.moveTo} <span style={{ float: 'right' }}>→</span>
           </button>
           {showFolderSub && (
-            <div className="conv-menu-sub">
+            <div className={`conv-menu-sub ${submenuSide === 'left' ? 'conv-menu-sub-left' : ''}`}>
               {conv.folder_id && (
                 <button type="button" onClick={() => onMoveToFolder(conv.id, null)}>
                   {L.removeFromFolder}

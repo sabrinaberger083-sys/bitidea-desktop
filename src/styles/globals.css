@@ -83,6 +83,45 @@
   transform: translateX(3px);
 }
 
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .panel,
+  .terminal,
+  .btn-secondary,
+  .hero-badge,
+  .badge,
+  .assistant-picker-dropdown,
+  .model-picker-dropdown,
+  .project-dropdown,
+  .settings-panel,
+  .approve-card {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .panel,
+  .btn-secondary,
+  .hero-badge,
+  .badge,
+  .assistant-picker-dropdown,
+  .model-picker-dropdown,
+  .project-dropdown,
+  .settings-panel,
+  .approve-card {
+    background: rgba(12, 18, 44, 0.96) !important;
+  }
+
+  .terminal {
+    background: rgba(6, 10, 22, 0.96) !important;
+  }
+
+  .settings-backdrop,
+  .approve-overlay {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(6, 10, 20, 0.78) !important;
+  }
+}
+
 /* ── Terminal panel ──────────────────────────────────────── */
 .terminal {
   width: 100%;
@@ -224,6 +263,18 @@
 }
 .input.mono,
 .textarea.mono { font-family: var(--font-mono); }
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-right: 42px;
+  background-image:
+    linear-gradient(180deg, rgba(22, 29, 66, 0.78) 0%, rgba(14, 19, 44, 0.78) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none'%3E%3Cpath d='M3.5 5.5L7 9L10.5 5.5' stroke='%23cfe2ff' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-position: 0 0, right 14px center;
+  background-repeat: no-repeat;
+  background-size: auto, 14px 14px;
+}
 .input:focus,
 .textarea:focus,
 .select:focus {
@@ -285,13 +336,408 @@
 
 /* ── Boot splash / error ─────────────────────────────────── */
 .boot-splash {
+  position: relative;
+  overflow: hidden;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 40px 24px;
+  gap: 18px;
   animation: fadeIn 0.4s ease both;
+}
+
+.boot-brand-stage {
+  position: relative;
+  width: min(760px, calc(100vw - 48px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 36px 32px 28px;
+  border-radius: 34px;
+  border: 1px solid rgba(175, 203, 255, 0.14);
+  background:
+    linear-gradient(180deg, rgba(18, 27, 62, 0.88) 0%, rgba(12, 17, 40, 0.82) 54%, rgba(7, 10, 24, 0.86) 100%);
+  box-shadow:
+    0 34px 90px rgba(1, 4, 14, 0.5),
+    0 18px 40px rgba(31, 67, 176, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.boot-brand-stage::before,
+.boot-brand-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.boot-brand-stage::before {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(115, 148, 255, 0.26) 0%, transparent 28%),
+    radial-gradient(circle at 24% 82%, rgba(126, 97, 255, 0.14) 0%, transparent 22%),
+    radial-gradient(circle at 78% 74%, rgba(74, 175, 255, 0.16) 0%, transparent 24%);
+}
+
+.boot-brand-stage::after {
+  border-radius: inherit;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -28px 64px rgba(4, 7, 18, 0.28);
+}
+
+.boot-brand-core,
+.boot-brand-copy,
+.boot-current-status,
+.boot-progress,
+.boot-status-strip {
+  position: relative;
+  z-index: 1;
+}
+
+.boot-brand-core {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 220px;
+  overflow: hidden;
+}
+
+.boot-brand-orbit {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(165, 195, 255, 0.12);
+  box-shadow: inset 0 0 24px rgba(95, 142, 255, 0.08);
+}
+
+.boot-brand-orbit-outer {
+  width: 320px;
+  height: 320px;
+  animation: boot-orbit-spin 16s linear infinite;
+}
+
+.boot-brand-orbit-inner {
+  width: 244px;
+  height: 244px;
+  animation: boot-orbit-spin 10s linear infinite reverse;
+}
+
+.boot-brand-beacon {
+  position: absolute;
+  width: 148px;
+  height: 148px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(133, 165, 255, 0.42) 0%, rgba(85, 152, 255, 0.16) 46%, transparent 72%);
+  filter: blur(4px);
+  animation: boot-beacon-pulse 2.6s ease-in-out infinite;
+}
+
+.boot-brand-copy {
+  display: grid;
+  gap: 8px;
+  text-align: center;
+}
+
+.boot-brand-kicker {
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  color: rgba(209, 223, 251, 0.66);
+}
+
+.boot-brand-tagline {
+  font-size: 14px;
+  color: rgba(203, 217, 246, 0.68);
+}
+
+.boot-current-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 22px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: rgba(234, 241, 255, 0.86);
+}
+
+.boot-progress {
+  width: min(420px, 72vw);
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(131, 164, 233, 0.12);
+}
+
+.boot-progress-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left center;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(155, 184, 255, 0.92) 0%, rgba(86, 156, 255, 0.96) 48%, rgba(170, 235, 255, 0.9) 100%);
+  box-shadow: 0 0 18px rgba(93, 166, 255, 0.34);
+  transition: transform 0.28s ease;
+}
+
+.boot-status-strip {
+  display: none;
+}
+
+.boot-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(163, 194, 255, 0.08);
+  background: rgba(14, 20, 46, 0.42);
+  color: rgba(191, 208, 239, 0.5);
+  transition: transform var(--t-fast), border-color var(--t-fast), background var(--t-fast), color var(--t-fast);
+}
+
+.boot-status-chip.is-active {
+  border-color: rgba(163, 194, 255, 0.14);
+  color: rgba(223, 233, 255, 0.72);
+}
+
+.boot-status-chip.is-current {
+  transform: translateY(-1px);
+  border-color: rgba(177, 206, 255, 0.22);
+  background:
+    linear-gradient(180deg, rgba(65, 92, 205, 0.32) 0%, rgba(20, 29, 68, 0.78) 100%);
+  color: #edf4ff;
+  box-shadow:
+    0 12px 26px rgba(41, 75, 190, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.boot-status-index {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.boot-status-label {
+  font-size: 11px;
+}
+
+.boot-splash-error {
+  gap: 0;
+}
+
+.boot-brand-stage-error {
+  gap: 22px;
+  padding-bottom: 30px;
+}
+
+.boot-error-hero,
+.boot-error-copy,
+.boot-error-strip,
+.boot-error-diagnostic,
+.boot-error-actions {
+  position: relative;
+  z-index: 1;
+}
+
+.boot-error-hero {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px 28px;
+}
+
+.boot-error-core {
+  min-height: 192px;
+}
+
+.boot-error-orbit {
+  border-color: rgba(255, 171, 171, 0.12);
+  box-shadow: inset 0 0 26px rgba(255, 101, 101, 0.08);
+}
+
+.boot-error-beacon {
+  background:
+    radial-gradient(circle, rgba(255, 145, 145, 0.34) 0%, rgba(255, 109, 109, 0.12) 46%, transparent 72%);
+}
+
+.boot-error-copy {
+  display: grid;
+  gap: 10px;
+  text-align: left;
+}
+
+.boot-error-kicker {
+  color: rgba(255, 206, 206, 0.72);
+}
+
+.boot-error-title {
+  margin: 0;
+  font-size: clamp(28px, 3.6vw, 42px);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  color: #f8fbff;
+}
+
+.boot-error-description {
+  margin: 0;
+  max-width: 42ch;
+  font-size: 14px;
+  line-height: 1.68;
+  color: rgba(212, 225, 250, 0.74);
+}
+
+.boot-error-strip {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.boot-error-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(174, 203, 255, 0.12);
+  background: rgba(16, 23, 52, 0.52);
+  color: rgba(226, 236, 255, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.boot-error-chip.is-danger {
+  border-color: rgba(255, 149, 149, 0.2);
+  background: linear-gradient(180deg, rgba(91, 24, 36, 0.48) 0%, rgba(36, 13, 24, 0.66) 100%);
+  color: #ffe3e3;
+}
+
+.boot-error-diagnostic {
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(172, 201, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(11, 16, 36, 0.86) 0%, rgba(7, 11, 25, 0.92) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 16px 36px rgba(1, 5, 18, 0.22);
+}
+
+.boot-error-diagnostic-label {
+  margin-bottom: 10px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: rgba(210, 224, 248, 0.56);
+}
+
+.boot-error-diagnostic-body {
+  margin: 0;
+  max-height: 180px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.62;
+  color: rgba(226, 236, 255, 0.76);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.boot-error-actions {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.boot-error-note {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(201, 215, 240, 0.6);
+}
+
+@keyframes boot-orbit-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes boot-beacon-pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(0.94);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@media (max-width: 720px) {
+  .boot-splash {
+    padding: 28px 18px;
+  }
+
+  .boot-brand-stage {
+    width: 100%;
+    padding: 28px 18px 22px;
+    border-radius: 28px;
+  }
+
+  .boot-brand-core {
+    min-height: 188px;
+  }
+
+  .boot-brand-orbit-outer {
+    width: 244px;
+    height: 244px;
+  }
+
+  .boot-brand-orbit-inner {
+    width: 182px;
+    height: 182px;
+  }
+
+  .boot-brand-kicker {
+    letter-spacing: 0.18em;
+  }
+
+  .boot-status-strip {
+    display: grid;
+    width: 100%;
+  }
+
+  .boot-status-chip {
+    justify-content: center;
+  }
+
+  .boot-error-hero {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .boot-error-copy {
+    text-align: center;
+  }
+
+  .boot-error-description,
+  .boot-error-note {
+    max-width: none;
+  }
+
+  .boot-error-actions {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
 }
 
 /* ── Utility ─────────────────────────────────────────────── */

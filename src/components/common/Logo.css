@@ -20,6 +20,80 @@
   -webkit-text-fill-color: transparent;
   color: transparent;
 }
+
+.logo-word-animated {
+  display: inline-flex;
+  align-items: center;
+}
+
+.logo-letter {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(0.24em) scale(0.92);
+  filter: blur(8px);
+  animation: logo-letter-reveal 0.72s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  animation-delay: calc(0.14s + var(--logo-letter-index) * 0.055s);
+}
+
+.logo-animated .logo-diamond {
+  opacity: 0;
+  transform: rotate(-22deg) scale(0.82);
+  animation:
+    logo-diamond-reveal 0.88s cubic-bezier(0.2, 0.8, 0.2, 1) 0.06s forwards,
+    logo-diamond-drift 3.4s ease-in-out 1s infinite;
+}
+
 .logo-glow {
   animation: titleGlow 4s ease-in-out infinite alternate;
+}
+
+@keyframes logo-letter-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(0.24em) scale(0.92);
+    filter: blur(8px);
+  }
+
+  65% {
+    opacity: 1;
+    transform: translateY(-0.04em) scale(1.02);
+    filter: blur(0);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes logo-diamond-reveal {
+  0% {
+    opacity: 0;
+    transform: rotate(-22deg) scale(0.82);
+    filter: blur(6px);
+  }
+
+  70% {
+    opacity: 1;
+    transform: rotate(6deg) scale(1.06);
+    filter: blur(0);
+  }
+
+  100% {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes logo-diamond-drift {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+
+  50% {
+    transform: translateY(-0.04em) scale(1.04);
+  }
 }

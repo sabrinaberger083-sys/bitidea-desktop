@@ -34,6 +34,7 @@ import { useStreamManager } from '../../hooks/useStreamManager';
 import type { Artifact } from '../../lib/artifacts';
 import { getProject } from '../../lib/db';
 import type {
+  ApprovalMode,
   ApprovalRequest,
   Assistant,
   AssistantEvent,
@@ -50,6 +51,10 @@ import type {
 import { open as openFileDialog, save as showSaveDialog } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import './ChatWindow.css';
+
+const STREAM_TEXT_MAX_CHARS = 12;
+const STREAM_THINKING_MAX_CHARS = 10;
+const STREAM_DRAIN_DIVISOR = 36;
 
 const COPY = {
   en: { settings: 'SETTINGS' },
@@ -89,6 +94,53 @@ function appendThinkingEvent(events: AssistantEvent[], chunk: string): Assistant
     return [...events.slice(0, -1), next];
   }
   return [...events, { kind: 'thinking', text: chunk }];
+}
+
+function stripTrailingTextEvents(events: AssistantEvent[]): AssistantEvent[] {
+  let end = events.length;
+  while (end > 0 && events[end - 1]?.kind === 'text') {
+    end -= 1;
+  }
+  return end === events.length ? events : events.slice(0, end);
+}
+
+function collectTextFromEvents(events: AssistantEvent[]): string {
+  return events
+    .filter((event): event is TextEvent => event.kind === 'text')
+    .map((event) => event.text)
+    .join('');
+}
+
+function finalizeAssistantEvents(
+  events: AssistantEvent[],
+  finalText: string,
+): AssistantEvent[] {
+  const nonTextEvents = events.filter((event) => event.kind !== 'text');
+  if (!finalText) return nonTextEvents;
+  return [...nonTextEvents, { kind: 'text', text: finalText }];
+}
+
+function streamDrainSize(queue: string, maxChars: number): number {
+  return Math.max(1, Math.min(maxChars, Math.ceil(queue.length / STREAM_DRAIN_DIVISOR)));
+}
+
+function splitLeadingChars(text: string, maxChars: number): [string, string] {
+  if (!text || maxChars <= 0) return ['', text];
+
+  let end = 0;
+  let count = 0;
+  for (const char of text) {
+    end += char.length;
+    count += 1;
+    if (count >= maxChars) break;
+  }
+
+  return [text.slice(0, end), text.slice(end)];
+}
+
+function drainQueuedText(queue: string, maxChars: number): [string, string] {
+  if (!queue) return ['', ''];
+  return splitLeadingChars(queue, streamDrainSize(queue, maxChars));
 }
 
 function upsertTool(
@@ -275,11 +327,11 @@ export default function ChatWindow({
   }, []);
 
   const handleApprovalResolve = useCallback(
-    (allow: boolean, remember: boolean) => {
+    (allow: boolean, mode: ApprovalMode) => {
       const current = approval;
       if (!current) return;
       setApproval(null);
-      respondToApproval(current.request_id, allow, remember).catch((err) => {
+      respondToApproval(current.request_id, allow, mode).catch((err) => {
         console.warn('approval post failed', err);
       });
       setTimeout(showNextApproval, 0);
@@ -408,34 +460,42 @@ export default function ChatWindow({
 
     const capturedConvId = convId;
     const pendingStreamRef = {
-      text: '',
-      thinking: '',
+      textQueue: '',
+      thinkingQueue: '',
       status: undefined as string | undefined,
       statusDirty: false,
+      toolOutputs: new Map<string, string>(),
+    };
+    const finalResponseRef = {
+      text: '',
     };
     let flushRaf = 0;
 
-    const flushPendingStream = () => {
-      if (flushRaf) {
-        cancelAnimationFrame(flushRaf);
-        flushRaf = 0;
-      }
-      const textChunk = pendingStreamRef.text;
-      const thinkingChunk = pendingStreamRef.thinking;
-      const statusDirty = pendingStreamRef.statusDirty;
-      const statusText = pendingStreamRef.status;
-      pendingStreamRef.text = '';
-      pendingStreamRef.thinking = '';
-      pendingStreamRef.status = undefined;
-      pendingStreamRef.statusDirty = false;
-
-      if (!textChunk && !thinkingChunk && !statusDirty) return;
+    const applyPendingStream = (
+      textChunk: string,
+      thinkingChunk: string,
+      statusDirty: boolean,
+      statusText: string | undefined,
+      toolOutputEntries: Array<[string, string]>,
+    ) => {
+      if (!textChunk && !thinkingChunk && !statusDirty && toolOutputEntries.length === 0) return;
 
       updateMessagesFor(capturedConvId, (prev) => {
         const updated = updateAssistant(prev, assistantId, (m) => {
           let nextEvents = m.events || [];
           if (textChunk) nextEvents = appendTextEvent(nextEvents, textChunk);
           if (thinkingChunk) nextEvents = appendThinkingEvent(nextEvents, thinkingChunk);
+          for (const [id, chunk] of toolOutputEntries) {
+            nextEvents = upsertTool(
+              nextEvents,
+              id,
+              (tool) => ({
+                ...tool,
+                output: tool.output + chunk,
+              }),
+              { output: chunk },
+            );
+          }
           return {
             ...m,
             content: textChunk ? m.content + textChunk : m.content,
@@ -449,13 +509,53 @@ export default function ChatWindow({
       });
     };
 
-    const schedulePendingFlush = () => {
+    function schedulePendingFlush() {
       if (flushRaf) return;
       flushRaf = requestAnimationFrame(() => {
         flushRaf = 0;
-        flushPendingStream();
+        drainPendingStream();
       });
-    };
+    }
+
+    function drainPendingStream(forceAll = false) {
+      if (flushRaf) {
+        cancelAnimationFrame(flushRaf);
+        flushRaf = 0;
+      }
+
+      const [textChunk, remainingText] = forceAll
+        ? [pendingStreamRef.textQueue, '']
+        : drainQueuedText(pendingStreamRef.textQueue, STREAM_TEXT_MAX_CHARS);
+      const [thinkingChunk, remainingThinking] = forceAll
+        ? [pendingStreamRef.thinkingQueue, '']
+        : drainQueuedText(pendingStreamRef.thinkingQueue, STREAM_THINKING_MAX_CHARS);
+      const statusDirty = pendingStreamRef.statusDirty;
+      const statusText = pendingStreamRef.status;
+      const toolOutputEntries = Array.from(pendingStreamRef.toolOutputs.entries());
+      pendingStreamRef.textQueue = remainingText;
+      pendingStreamRef.thinkingQueue = remainingThinking;
+      pendingStreamRef.status = undefined;
+      pendingStreamRef.statusDirty = false;
+      pendingStreamRef.toolOutputs.clear();
+
+      applyPendingStream(textChunk, thinkingChunk, statusDirty, statusText, toolOutputEntries);
+
+      if (
+        !forceAll
+        && (
+          pendingStreamRef.textQueue
+          || pendingStreamRef.thinkingQueue
+          || pendingStreamRef.statusDirty
+          || pendingStreamRef.toolOutputs.size > 0
+        )
+      ) {
+        schedulePendingFlush();
+      }
+    }
+
+    function flushPendingStream() {
+      drainPendingStream(true);
+    }
 
     // Resolve system prompt from the current assistant
     let systemPrompt: string | undefined;
@@ -466,11 +566,11 @@ export default function ChatWindow({
 
     const controller = streamChat(history, {
       onToken: (txt) => {
-        pendingStreamRef.text += txt;
+        pendingStreamRef.textQueue += txt;
         schedulePendingFlush();
       },
       onThinking: (txt) => {
-        pendingStreamRef.thinking += txt;
+        pendingStreamRef.thinkingQueue += txt;
         schedulePendingFlush();
       },
       onToolStart: (t) => {
@@ -478,8 +578,9 @@ export default function ChatWindow({
         updateMessagesFor(capturedConvId, (prev) =>
           updateAssistant(prev, assistantId, (m) => ({
             ...m,
+            content: collectTextFromEvents(stripTrailingTextEvents(m.events || [])),
             events: upsertTool(
-              m.events || [],
+              stripTrailingTextEvents(m.events || []),
               t.id,
               (tool) => ({
                 ...tool,
@@ -502,21 +603,8 @@ export default function ChatWindow({
         );
       },
       onToolOutput: (id, chunk) => {
-        flushPendingStream();
-        updateMessagesFor(capturedConvId, (prev) =>
-          updateAssistant(prev, assistantId, (m) => ({
-            ...m,
-            events: upsertTool(
-              m.events || [],
-              id,
-              (t) => ({
-                ...t,
-                output: t.output + chunk,
-              }),
-              { output: chunk },
-            ),
-          })),
-        );
+        pendingStreamRef.toolOutputs.set(id, (pendingStreamRef.toolOutputs.get(id) || '') + chunk);
+        schedulePendingFlush();
       },
       onToolResult: (id, result) => {
         flushPendingStream();
@@ -555,12 +643,21 @@ export default function ChatWindow({
         pendingStreamRef.statusDirty = true;
         schedulePendingFlush();
       },
+      onFinalResponse: (txt) => {
+        finalResponseRef.text = txt;
+      },
       onDone: () => {
         flushPendingStream();
         updateMessagesFor(capturedConvId, (prev) => {
           const updated = updateAssistant(prev, assistantId, (m) => ({
             ...m,
+            content: finalResponseRef.text || collectTextFromEvents(m.events || []) || m.content,
+            events: finalizeAssistantEvents(
+              m.events || [],
+              finalResponseRef.text || collectTextFromEvents(m.events || []),
+            ),
             streaming: false,
+            step: undefined,
             status: undefined,
           }));
           const msg = updated.find((m) => m.id === assistantId);
@@ -581,6 +678,7 @@ export default function ChatWindow({
             return {
               ...m,
               streaming: false,
+              step: undefined,
               status: undefined,
               content: m.content || errorText,
               events,
@@ -595,6 +693,7 @@ export default function ChatWindow({
     }, {
       ...(currentProjectPath ? { projectPath: currentProjectPath } : {}),
       ...(systemPrompt ? { systemPrompt } : {}),
+      lang,
     });
 
     streams.startStream(convId, controller);
@@ -606,7 +705,7 @@ export default function ChatWindow({
     }
     setMessages((prev) =>
       prev.map((m) =>
-        m.streaming ? { ...m, streaming: false, status: undefined } : m,
+        m.streaming ? { ...m, streaming: false, step: undefined, status: undefined } : m,
       ),
     );
     approvalQueueRef.current = [];
@@ -792,7 +891,7 @@ export default function ChatWindow({
   return (
     <div className="chat-root">
       <header className="chat-topbar">
-        <div className="row" style={{ gap: 14 }}>
+        <div className="row chat-topbar-main">
           <Logo size="sm" />
           <AssistantPicker
             lang={lang}
@@ -802,7 +901,7 @@ export default function ChatWindow({
             onCreateNew={() => { setEditingAssistant(null); setEditorOpen(true); }}
           />
         </div>
-        <div className="row" style={{ gap: 10 }}>
+        <div className="row chat-topbar-actions">
           <ModelPicker
             provider={config?.provider ?? 'openai'}
             model={config?.model ?? ''}
@@ -858,7 +957,11 @@ export default function ChatWindow({
           onMoveToFolder={convs.moveToFolder}
         />
         <main className={`chat-center ${(previewArtifact || editorFilePath) ? 'with-preview' : ''}`}>
-          <MessageList messages={messages} lang={lang} onPreviewArtifact={(a) => { setEditorFilePath(null); setPreviewArtifact(a); }} />
+          <MessageList
+            messages={messages}
+            lang={lang}
+            onPreviewArtifact={(a) => { setEditorFilePath(null); setPreviewArtifact(a); }}
+          />
           <InputBox
             lang={lang}
             streaming={streaming}

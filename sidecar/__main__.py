@@ -21,7 +21,14 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 
-_ENGINE_DIR = str(Path(__file__).resolve().parent.parent / "engine")
+def _project_root() -> Path:
+    """Return repo root in dev and the extracted app root when frozen."""
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return Path(getattr(sys, "_MEIPASS"))
+    return Path(__file__).resolve().parent.parent
+
+
+_ENGINE_DIR = str(_project_root() / "engine")
 if _ENGINE_DIR not in sys.path:
     sys.path.insert(0, _ENGINE_DIR)
 

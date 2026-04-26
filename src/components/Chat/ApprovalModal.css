@@ -53,6 +53,11 @@
   font-size: 16px;
   text-shadow: 0 0 10px rgba(245, 158, 11, 0.45);
 }
+.approve-glyph svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
 .approve-title {
   color: var(--warning);
   font-weight: 500;
@@ -82,7 +87,9 @@
   margin: 0;
   font-size: 13px;
   color: var(--ink);
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-break: auto;
 }
 
 .approve-cmd {
@@ -97,27 +104,55 @@
   max-height: 160px;
   overflow: auto;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-break: auto;
 }
 
-.approve-remember {
+.approve-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.approve-option {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  margin-top: 2px;
+  padding: 8px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: rgba(15, 25, 50, 0.18);
   color: var(--ink-dim);
   font-family: var(--font-sans);
   font-size: 12.5px;
   cursor: pointer;
   user-select: none;
+  transition:
+    border-color var(--t),
+    background var(--t),
+    color var(--t);
 }
-.approve-remember input[type='checkbox'] {
+
+.approve-option:hover {
+  border-color: rgba(125, 211, 252, 0.24);
+  color: var(--ink);
+}
+
+.approve-option-active {
+  border-color: rgba(125, 211, 252, 0.28);
+  background: rgba(74, 158, 255, 0.12);
+  color: var(--ink);
+}
+
+.approve-option input[type='checkbox'] {
   appearance: none;
   -webkit-appearance: none;
   width: 14px;
   height: 14px;
   border: 1px solid var(--panel-border-strong);
-  border-radius: var(--r-xs);
+  border-radius: 999px;
   background: transparent;
   margin: 0;
   padding: 0;
@@ -125,22 +160,19 @@
   position: relative;
   transition: border-color var(--t);
 }
-.approve-remember input[type='checkbox']:hover {
+.approve-option input[type='checkbox']:hover {
   border-color: var(--accent-2);
 }
-.approve-remember input[type='checkbox']:checked {
-  background: var(--accent);
+.approve-option input[type='checkbox']:checked {
   border-color: var(--accent);
+  background: rgba(74, 158, 255, 0.14);
 }
-.approve-remember input[type='checkbox']:checked::after {
-  content: '✓';
+.approve-option input[type='checkbox']:checked::after {
+  content: '';
   position: absolute;
-  top: -2px;
-  left: 1px;
-  color: var(--bg);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
+  inset: 3px;
+  border-radius: 999px;
+  background: var(--accent);
 }
 
 .approve-actions {
@@ -217,7 +249,9 @@
   max-height: 200px;
   overflow: auto;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-break: auto;
 }
 .approve-preview .tool-preview-prompt {
   color: var(--ink-faint);

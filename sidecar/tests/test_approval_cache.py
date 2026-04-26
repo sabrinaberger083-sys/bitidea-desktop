@@ -17,7 +17,7 @@ def test_hit_returns_true_and_future_expiry():
     reg = ApprovalRegistry()
     # Simulate the write path: resolve with remember=True.
     req = reg.register_pending("mkdir", {"command": "mkdir x"})
-    assert reg.resolve(req.request_id, allow=True, remember=True) is True
+    assert reg.resolve(req.request_id, allow=True, mode="remember") is True
 
     before = time.monotonic()
     hit, expires_at = reg.check_remember("mkdir", {"command": "mkdir x"})
@@ -31,7 +31,7 @@ def test_hit_returns_true_and_future_expiry():
 def test_expired_entry_is_evicted():
     reg = ApprovalRegistry()
     req = reg.register_pending("mkdir", {"command": "mkdir y"})
-    reg.resolve(req.request_id, allow=True, remember=True)
+    reg.resolve(req.request_id, allow=True, mode="remember")
 
     # Force-expire by rewriting the internal entry (test-only poke).
     key = ApprovalRegistry._cache_key("mkdir", {"command": "mkdir y"})
@@ -45,7 +45,7 @@ def test_expired_entry_is_evicted():
 def test_remember_false_does_not_cache():
     reg = ApprovalRegistry()
     req = reg.register_pending("cmd", {"a": 1})
-    reg.resolve(req.request_id, allow=True, remember=False)
+    reg.resolve(req.request_id, allow=True, mode="once")
     hit, _ = reg.check_remember("cmd", {"a": 1})
     assert hit is False
 
@@ -53,8 +53,17 @@ def test_remember_false_does_not_cache():
 def test_deny_does_not_cache():
     reg = ApprovalRegistry()
     req = reg.register_pending("cmd", {"a": 1})
-    reg.resolve(req.request_id, allow=False, remember=True)
+    reg.resolve(req.request_id, allow=False, mode="remember")
     hit, _ = reg.check_remember("cmd", {"a": 1})
+    assert hit is False
+
+
+def test_always_allow_bypasses_ttl_cache():
+    reg = ApprovalRegistry()
+    req = reg.register_pending("cmd", {"command": "mkdir z"})
+    assert reg.resolve(req.request_id, allow=True, mode="always") is True
+    assert req.result == "always"
+    hit, _ = reg.check_remember("cmd", {"command": "mkdir z"})
     assert hit is False
 
 
@@ -89,7 +98,7 @@ def test_cache_hits_across_asymmetric_call_shapes():
         "pattern_key": "rm-recursive",
     }
     req = reg.register_pending(notify_tool_name, notify_args)
-    assert reg.resolve(req.request_id, allow=True, remember=True)
+    assert reg.resolve(req.request_id, allow=True, mode="remember")
 
     # Read path: matches tool_progress() at line 419 — raw tool name + raw
     # args dict the LLM passed.
@@ -104,7 +113,7 @@ def test_cache_miss_when_command_differs():
     """Same tool name, different command: must not hit."""
     reg = ApprovalRegistry()
     req = reg.register_pending("t", {"command": "rm -rf /tmp/foo"})
-    assert reg.resolve(req.request_id, allow=True, remember=True)
+    assert reg.resolve(req.request_id, allow=True, mode="remember")
 
     hit, _ = reg.check_remember("t", {"command": "rm -rf /tmp/bar"})
     assert hit is False

@@ -9,13 +9,20 @@
 //! and kill the child when the app shuts down.
 
 use std::io::{BufRead, BufReader};
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
 use serde::Serialize;
-use tauri::State;
+use tauri::{AppHandle, Runtime, State};
+
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[derive(Default, Debug, Clone, Serialize)]
 pub struct SidecarInfo {
@@ -32,6 +39,13 @@ pub struct SidecarState {
     pub child: Arc<Mutex<Option<Child>>>,
 }
 
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+#[derive(Debug)]
+enum SidecarLaunch {
+    BundledExecutable { executable: PathBuf, cwd: PathBuf },
+    PythonModule { python: String, cwd: PathBuf },
+}
+
 /// Locate the Python interpreter to launch the sidecar with.
 ///
 /// Preference order:
@@ -43,10 +57,15 @@ pub struct SidecarState {
 ///   2. `python3` on PATH.
 ///   3. `python` on PATH.
 ///   4. Literal `python3` as a last resort.
-fn find_python(sidecar_dir: &std::path::Path) -> String {
-    let venv = sidecar_dir.join(".venv").join("bin").join("python");
-    if venv.exists() {
-        return venv.to_string_lossy().into_owned();
+fn find_python(sidecar_dir: &Path) -> String {
+    let venv_candidates = [
+        sidecar_dir.join(".venv").join("bin").join("python"),
+        sidecar_dir.join(".venv").join("Scripts").join("python.exe"),
+    ];
+    for venv in venv_candidates {
+        if venv.exists() {
+            return venv.to_string_lossy().into_owned();
+        }
     }
     for candidate in &["python3", "python"] {
         if Command::new(candidate).arg("--version").output().is_ok() {
@@ -59,7 +78,7 @@ fn find_python(sidecar_dir: &std::path::Path) -> String {
 /// Locate the sidecar directory. In dev, that's `<project>/sidecar`
 /// (the exe lives at `<project>/src-tauri/target/debug/bitidea-desktop`).
 /// In a bundled .app, resources live next to the executable.
-fn sidecar_dir() -> std::path::PathBuf {
+fn sidecar_dir() -> PathBuf {
     if let Ok(exe) = std::env::current_exe() {
         // Walk up from the exe looking for a sibling `sidecar` directory.
         let mut dir = exe.clone();
@@ -74,37 +93,107 @@ fn sidecar_dir() -> std::path::PathBuf {
         }
     }
     // Final fallback: relative to cwd.
-    std::path::PathBuf::from("sidecar")
+    PathBuf::from("sidecar")
 }
 
-pub fn spawn(state: &SidecarState) {
-    let dir = sidecar_dir();
-    let python = find_python(&dir);
+#[cfg(target_os = "windows")]
+fn bundled_sidecar_candidates(resource_dir: &Path) -> [PathBuf; 4] {
+    [
+        resource_dir.join("sidecar.exe"),
+        resource_dir.join("bitidea-sidecar.exe"),
+        resource_dir.join("sidecar").join("sidecar.exe"),
+        resource_dir.join("sidecar").join("bitidea-sidecar.exe"),
+    ]
+}
 
+#[cfg(target_os = "windows")]
+fn bundled_sidecar_launch<R: Runtime>(app: &AppHandle<R>) -> Option<SidecarLaunch> {
+    if tauri::is_dev() {
+        return None;
+    }
+
+    let resource_dir = app.path().resource_dir().ok()?;
+    let executable = bundled_sidecar_candidates(&resource_dir)
+        .into_iter()
+        .find(|candidate| candidate.exists())?;
+    let cwd = executable
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or(resource_dir);
+
+    Some(SidecarLaunch::BundledExecutable { executable, cwd })
+}
+
+#[cfg(not(target_os = "windows"))]
+fn bundled_sidecar_launch<R: Runtime>(_app: &AppHandle<R>) -> Option<SidecarLaunch> {
+    None
+}
+
+fn resolve_launch<R: Runtime>(app: &AppHandle<R>) -> Result<SidecarLaunch, String> {
+    if let Some(launch) = bundled_sidecar_launch(app) {
+        return Ok(launch);
+    }
+
+    let dir = sidecar_dir();
     if !dir.exists() {
-        let msg = format!("sidecar dir not found: {}", dir.display());
-        eprintln!("[sidecar] {msg}");
-        state.info.lock().unwrap().error = Some(msg);
-        return;
+        return Err(format!("sidecar dir not found: {}", dir.display()));
     }
 
     // `python -m sidecar` needs cwd to be the *parent* of the `sidecar/` package,
     // not the package itself.
-    let cwd = dir.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| dir.clone());
+    let cwd = dir
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| dir.clone());
+    let python = find_python(&dir);
 
-    eprintln!(
-        "[sidecar] spawning: {} -m sidecar (cwd={})",
-        python,
-        cwd.display()
-    );
+    Ok(SidecarLaunch::PythonModule { python, cwd })
+}
 
-    let spawn_result = Command::new(&python)
-        .arg("-m")
-        .arg("sidecar")
-        .current_dir(&cwd)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn();
+pub fn spawn<R: Runtime>(app: &AppHandle<R>, state: &SidecarState) {
+    let launch = match resolve_launch(app) {
+        Ok(launch) => launch,
+        Err(msg) => {
+            eprintln!("[sidecar] {msg}");
+            state.info.lock().unwrap().error = Some(msg);
+            return;
+        }
+    };
+
+    let spawn_result = match &launch {
+        SidecarLaunch::BundledExecutable { executable, cwd } => {
+            eprintln!(
+                "[sidecar] spawning bundled executable: {} (cwd={})",
+                executable.display(),
+                cwd.display()
+            );
+            let mut command = Command::new(executable);
+            command
+                .current_dir(cwd)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
+            #[cfg(target_os = "windows")]
+            command.creation_flags(CREATE_NO_WINDOW);
+            command.spawn()
+        }
+        SidecarLaunch::PythonModule { python, cwd } => {
+            eprintln!(
+                "[sidecar] spawning: {} -m sidecar (cwd={})",
+                python,
+                cwd.display()
+            );
+            let mut command = Command::new(python);
+            command
+                .arg("-m")
+                .arg("sidecar")
+                .current_dir(cwd)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
+            #[cfg(target_os = "windows")]
+            command.creation_flags(CREATE_NO_WINDOW);
+            command.spawn()
+        }
+    };
 
     let mut child = match spawn_result {
         Ok(c) => c,

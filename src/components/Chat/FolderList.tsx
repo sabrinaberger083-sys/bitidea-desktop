@@ -36,6 +36,10 @@ interface ContextMenuState {
   y: number;
 }
 
+const MENU_WIDTH = 180;
+const MENU_HEIGHT = 112;
+const MENU_MARGIN = 12;
+
 export default function FolderList({
   lang,
   folders,
@@ -123,7 +127,15 @@ export default function FolderList({
 
   function handleFolderContextMenu(e: React.MouseEvent, folderId: string) {
     e.preventDefault();
-    setContextMenu({ folderId, x: e.clientX, y: e.clientY });
+    const x = Math.min(
+      Math.max(MENU_MARGIN, e.clientX),
+      window.innerWidth - MENU_WIDTH - MENU_MARGIN,
+    );
+    const y = Math.min(
+      Math.max(MENU_MARGIN, e.clientY),
+      window.innerHeight - MENU_HEIGHT - MENU_MARGIN,
+    );
+    setContextMenu({ folderId, x, y });
   }
 
   function handleRenameClick() {

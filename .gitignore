@@ -26,3 +26,5 @@ node_modules/
 # Temp/backup
 .codex-backups/
 .tmp/
+.cache/
+/src-tauri/bin/*.exe

@@ -8,11 +8,16 @@ import {
   listProjects,
   renameProject,
 } from '../../lib/db';
+import { collapsePath } from '../../lib/path';
 import './ProjectPicker.css';
 
 const COPY = {
   en: {
     all: 'All conversations',
+    allMeta: 'No project scope',
+    current: 'Current',
+    currentProject: 'Current project',
+    projectScope: 'Project scope',
     newProject: 'New project',
     selectFolder: 'Select folder',
     rename: 'Rename',
@@ -20,6 +25,10 @@ const COPY = {
   },
   zh: {
     all: '所有对话',
+    allMeta: '不限制项目范围',
+    current: '当前',
+    currentProject: '当前项目',
+    projectScope: '项目范围',
     newProject: '新建项目',
     selectFolder: '选择文件夹',
     rename: '重命名',
@@ -31,6 +40,45 @@ interface Props {
   lang: Lang;
   currentProjectId: string | null;
   onProjectChange: (projectId: string | null, projectPath?: string) => void;
+}
+
+function ProjectGlyph({ kind }: { kind: 'folder' | 'chat' | 'add' }) {
+  if (kind === 'folder') {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path
+          d="M1.75 4.75a1.5 1.5 0 0 1 1.5-1.5h2.3c.35 0 .69.12.95.34l1.12.91c.18.15.41.23.65.23h4.53a1.5 1.5 0 0 1 1.5 1.5v4.57a1.5 1.5 0 0 1-1.5 1.5H3.25a1.5 1.5 0 0 1-1.5-1.5z"
+          stroke="currentColor"
+          strokeWidth="1.2"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
+  if (kind === 'chat') {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path
+          d="M3 4.25A1.75 1.75 0 0 1 4.75 2.5h6.5A1.75 1.75 0 0 1 13 4.25v4.25a1.75 1.75 0 0 1-1.75 1.75H8.8l-2.15 2.01c-.45.42-1.18.1-1.18-.51v-1.5h-.72A1.75 1.75 0 0 1 3 8.5z"
+          stroke="currentColor"
+          strokeWidth="1.2"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M8 3.25v9.5M3.25 8h9.5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
 }
 
 export default function ProjectPicker({ lang, currentProjectId, onProjectChange }: Props) {
@@ -68,6 +116,8 @@ export default function ProjectPicker({ lang, currentProjectId, onProjectChange 
   }, [open_]);
 
   const currentProject = projects.find((p) => p.id === currentProjectId) ?? null;
+  const currentMeta = currentProject ? collapsePath(currentProject.path) : L.allMeta;
+  const currentMetaTitle = currentProject?.path ?? L.allMeta;
 
   async function handleNewProject() {
     try {
@@ -148,35 +198,58 @@ export default function ProjectPicker({ lang, currentProjectId, onProjectChange 
         type="button"
         className="project-picker-toggle"
         onClick={() => setOpen_(!open_)}
+        aria-expanded={open_}
       >
         <span className="project-picker-icon">
-          {currentProject ? '\u{1F4C1}' : '\u{1F4AC}'}
+          <ProjectGlyph kind={currentProject ? 'folder' : 'chat'} />
         </span>
-        <span className="project-picker-label">
-          {currentProject ? currentProject.name : L.all}
+        <span className="project-picker-copy">
+          <span className="project-picker-eyebrow">
+            {currentProject ? L.currentProject : L.projectScope}
+          </span>
+          <span className="project-picker-label-row">
+            <span className="project-picker-label">
+              {currentProject ? currentProject.name : L.all}
+            </span>
+            {currentProject && (
+              <span className="project-picker-badge">{L.current}</span>
+            )}
+          </span>
+          <span className="project-picker-meta" title={currentMetaTitle}>
+            {currentMeta}
+          </span>
         </span>
         <span className="project-picker-arrow">{open_ ? '▲' : '▼'}</span>
       </button>
 
       {open_ && (
         <div className="project-dropdown">
-          {/* All conversations */}
           <button
             type="button"
-            className={`project-dropdown-item ${currentProjectId === null ? 'project-dropdown-item-active' : ''}`}
+            className={`project-dropdown-item project-dropdown-item-plain ${currentProjectId === null ? 'project-dropdown-item-active' : ''}`}
             onClick={() => handleSelect(null)}
           >
-            <span className="project-dropdown-icon">{'\u{1F4AC}'}</span>
-            <span className="project-dropdown-name">{L.all}</span>
+            <span className="project-dropdown-icon"><ProjectGlyph kind="chat" /></span>
+            <span className="project-dropdown-copy">
+              <span className="project-dropdown-row">
+                <span className="project-dropdown-name">{L.all}</span>
+                {currentProjectId === null && (
+                  <span className="project-dropdown-badge">{L.current}</span>
+                )}
+              </span>
+              <span className="project-dropdown-path">{L.allMeta}</span>
+            </span>
           </button>
 
           {projects.length > 0 && <div className="project-dropdown-divider" />}
 
-          {/* Project list */}
           {projects.map((proj) => (
-            <div key={proj.id}>
+            <div
+              key={proj.id}
+              className={`project-dropdown-item ${currentProjectId === proj.id ? 'project-dropdown-item-active' : ''}`}
+            >
               {renamingId === proj.id ? (
-                <div style={{ padding: '4px 10px' }}>
+                <div className="project-dropdown-rename">
                   <input
                     className="project-rename-input"
                     value={renameValue}
@@ -190,45 +263,57 @@ export default function ProjectPicker({ lang, currentProjectId, onProjectChange 
                   />
                 </div>
               ) : (
-                <button
-                  type="button"
-                  className={`project-dropdown-item ${currentProjectId === proj.id ? 'project-dropdown-item-active' : ''}`}
-                  onClick={() => handleSelect(proj.id)}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    startRename(e, proj);
-                  }}
-                >
-                  <span className="project-dropdown-icon">{'\u{1F4C1}'}</span>
-                  <span className="project-dropdown-name">{proj.name}</span>
-                  <span className="project-dropdown-path" title={proj.path}>
-                    {proj.path.split(/[/\\]/).slice(-2).join('/')}
-                  </span>
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    style={{ fontSize: 11, opacity: 0.4, cursor: 'pointer', marginLeft: 2 }}
+                <>
+                  <button
+                    type="button"
+                    className="project-dropdown-main"
+                    onClick={() => handleSelect(proj.id)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      startRename(e, proj);
+                    }}
+                  >
+                    <span className="project-dropdown-icon"><ProjectGlyph kind="folder" /></span>
+                    <span className="project-dropdown-copy">
+                      <span className="project-dropdown-row">
+                        <span className="project-dropdown-name">{proj.name}</span>
+                        {currentProjectId === proj.id && (
+                          <span className="project-dropdown-badge">{L.current}</span>
+                        )}
+                      </span>
+                      <span className="project-dropdown-path" title={proj.path}>
+                        {collapsePath(proj.path)}
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="project-dropdown-delete"
                     title={L.remove}
+                    aria-label={L.remove}
                     onClick={(e) => handleDeleteClick(e, proj.id)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleDeleteClick(e as unknown as React.MouseEvent, proj.id); }}
                   >
                     {'✕'}
-                  </span>
-                </button>
+                  </button>
+                </>
               )}
             </div>
           ))}
 
           <div className="project-dropdown-divider" />
 
-          {/* New project */}
           <button
             type="button"
-            className="project-dropdown-item project-dropdown-new"
+            className="project-dropdown-item project-dropdown-item-plain project-dropdown-new"
             onClick={handleNewProject}
           >
-            <span className="project-dropdown-icon">+</span>
-            <span className="project-dropdown-name">{L.newProject}</span>
+            <span className="project-dropdown-icon"><ProjectGlyph kind="add" /></span>
+            <span className="project-dropdown-copy">
+              <span className="project-dropdown-row">
+                <span className="project-dropdown-name">{L.newProject}</span>
+              </span>
+              <span className="project-dropdown-path">{L.selectFolder}</span>
+            </span>
           </button>
         </div>
       )}

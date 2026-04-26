@@ -5,10 +5,12 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import type {
+  ApprovalMode,
   ApprovalRequest,
   Attachment,
   Config,
   ConfigInput,
+  Lang,
   Message,
   Severity,
   StepEvent,
@@ -140,6 +142,7 @@ export interface StreamHandlers {
   onApprovalRequest?: (req: ApprovalRequest) => void;
   onStep?: (step: StepEvent) => void;
   onStatus?: (text: string) => void;
+  onFinalResponse?: (text: string) => void;
   onDone: () => void;
   onError: (message: string) => void;
 }
@@ -186,7 +189,7 @@ function formatMessageForApi(
 export function streamChat(
   messages: (Pick<Message, 'role' | 'content'> & { attachments?: Attachment[] })[],
   handlers: StreamHandlers,
-  options?: { projectPath?: string; systemPrompt?: string },
+  options?: { projectPath?: string; systemPrompt?: string; lang?: Lang },
 ): AbortController {
   const controller = new AbortController();
   const { url } = getBase();
@@ -217,6 +220,7 @@ export function streamChat(
       const chatBody: Record<string, unknown> = { messages: messages.map(formatMessageForApi) };
       if (options?.projectPath) chatBody.project_path = options.projectPath;
       if (options?.systemPrompt) chatBody.system_prompt = options.systemPrompt;
+      if (options?.lang) chatBody.ui_lang = options.lang;
       res = await fetch(`${url}/chat`, {
         method: 'POST',
         headers: headers(),
@@ -342,6 +346,9 @@ function parseFrame(frame: string, h: StreamHandlers): void {
     case 'status':
       h.onStatus?.(str(data.text));
       return;
+    case 'final_response':
+      h.onFinalResponse?.(str(data.text));
+      return;
     case 'error':
       h.onError(str(data.message, 'unknown error'));
       return;
@@ -358,14 +365,14 @@ function parseFrame(frame: string, h: StreamHandlers): void {
 export function respondToApproval(
   requestId: string,
   allow: boolean,
-  remember: boolean,
+  mode: ApprovalMode,
 ): Promise<{ ok: true }> {
   return req<{ ok: true }>('/approval', {
     method: 'POST',
     body: JSON.stringify({
       request_id: requestId,
       allow,
-      remember,
+      mode,
     }),
   });
 }
@@ -630,4 +637,3 @@ export function saveGatewayConfig(cfg: GatewayConfigInput): Promise<{ ok: true }
     body: JSON.stringify(cfg),
   });
 }
-

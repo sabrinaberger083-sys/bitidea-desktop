@@ -13,29 +13,33 @@
   gap: 8px;
   max-width: 240px;
   padding: 0 14px;
-  border-radius: 18px;
-  border: 1px solid rgba(153, 191, 255, 0.14);
-  background: linear-gradient(180deg, rgba(30, 40, 90, 0.82) 0%, rgba(18, 24, 56, 0.78) 100%);
+  border-radius: var(--topbar-control-radius, 14px);
+  border: 1px solid var(--topbar-control-border, rgba(153, 191, 255, 0.12));
+  background: var(--topbar-control-bg, linear-gradient(180deg, rgba(30, 40, 90, 0.72) 0%, rgba(18, 24, 56, 0.64) 100%));
   color: var(--ink);
   cursor: pointer;
-  transition: transform var(--t), border-color var(--t), box-shadow var(--t);
+  transition: transform var(--t), border-color var(--t), box-shadow var(--t), background var(--t);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   user-select: none;
   line-height: 1.4;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow: var(--topbar-control-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.06));
+  backdrop-filter: blur(var(--topbar-control-blur, 10px));
+  -webkit-backdrop-filter: blur(var(--topbar-control-blur, 10px));
 }
 
 .model-picker-chip:hover {
   transform: translateY(-1px);
-  border-color: rgba(177, 205, 255, 0.2);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 32px rgba(15, 31, 92, 0.22);
+  border-color: var(--topbar-control-border-hover, rgba(177, 205, 255, 0.18));
+  background: var(--topbar-control-bg-hover, linear-gradient(180deg, rgba(35, 46, 100, 0.74) 0%, rgba(20, 27, 62, 0.68) 100%));
+  box-shadow: var(--topbar-control-shadow-hover, inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 10px 20px rgba(15, 31, 92, 0.18));
 }
 
 .model-picker-chip.open {
-  border-color: rgba(184, 211, 255, 0.24);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 0 3px rgba(95, 132, 255, 0.14), 0 20px 40px rgba(18, 39, 112, 0.26);
+  border-color: var(--topbar-control-border-active, rgba(184, 211, 255, 0.22));
+  background: var(--topbar-control-bg-hover, linear-gradient(180deg, rgba(35, 46, 100, 0.74) 0%, rgba(20, 27, 62, 0.68) 100%));
+  box-shadow: var(--topbar-control-shadow-active, inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 0 2px rgba(95, 132, 255, 0.12));
 }
 
 .model-picker-chip > span:first-child {
@@ -56,19 +60,20 @@
 /* ── Dropdown ─────────────────────────────────────────── */
 .model-picker-dropdown {
   position: absolute;
-  top: calc(100% + 10px);
+  top: calc(100% + 8px);
   right: 0;
   min-width: 290px;
   max-height: 340px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   z-index: 100;
   display: flex;
   flex-direction: column;
-  padding: 8px;
-  border-radius: 22px;
-  border: 1px solid rgba(158, 192, 255, 0.14);
+  padding: 6px;
+  border-radius: var(--topbar-menu-radius, 18px);
+  border: 1px solid var(--topbar-menu-border, rgba(158, 192, 255, 0.12));
   background: linear-gradient(180deg, rgba(23, 30, 70, 0.96) 0%, rgba(14, 19, 46, 0.96) 100%);
-  box-shadow: 0 26px 58px rgba(4, 7, 19, 0.44), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: var(--topbar-menu-shadow, 0 18px 40px rgba(4, 7, 19, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.05));
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   animation: modelPickerIn 0.16s ease;
@@ -93,22 +98,21 @@
   background: none;
   color: var(--ink-dim);
   cursor: pointer;
-  transition: transform var(--t-fast), background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
   font-family: var(--font-sans);
   font-size: 12px;
 }
 
 .model-picker-item:hover {
-  transform: translateY(-1px);
-  background: rgba(98, 131, 255, 0.1);
-  border-color: rgba(151, 186, 255, 0.1);
+  background: rgba(98, 131, 255, 0.08);
+  border-color: rgba(151, 186, 255, 0.08);
   color: var(--ink);
 }
 
 .model-picker-item.active {
   color: var(--ink);
-  background: linear-gradient(135deg, rgba(92, 122, 255, 0.18) 0%, rgba(59, 149, 255, 0.14) 100%);
-  border-color: rgba(160, 192, 255, 0.14);
+  background: linear-gradient(135deg, rgba(92, 122, 255, 0.14) 0%, rgba(59, 149, 255, 0.1) 100%);
+  border-color: rgba(160, 192, 255, 0.12);
 }
 
 .model-picker-item-label {
@@ -146,16 +150,16 @@
 .model-picker-custom input {
   flex: 1;
   min-height: 40px;
-  background: linear-gradient(180deg, rgba(28, 36, 82, 0.84) 0%, rgba(17, 23, 52, 0.84) 100%);
-  border: 1px solid rgba(152, 190, 255, 0.12);
-  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(28, 36, 82, 0.72) 0%, rgba(17, 23, 52, 0.72) 100%);
+  border: 1px solid rgba(152, 190, 255, 0.1);
+  border-radius: 12px;
   padding: 0 12px;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--ink);
   outline: none;
   transition: border-color var(--t-fast), box-shadow var(--t-fast);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .model-picker-custom input::placeholder {
@@ -163,15 +167,15 @@
 }
 
 .model-picker-custom input:focus {
-  border-color: rgba(168, 198, 255, 0.2);
-  box-shadow: 0 0 0 3px rgba(95, 132, 255, 0.14);
+  border-color: rgba(168, 198, 255, 0.18);
+  box-shadow: 0 0 0 2px rgba(95, 132, 255, 0.12);
 }
 
 .model-picker-custom button {
   min-height: 40px;
   padding: 0 14px;
-  border: 1px solid rgba(169, 198, 255, 0.18);
-  border-radius: 14px;
+  border: 1px solid rgba(169, 198, 255, 0.14);
+  border-radius: 12px;
   background: linear-gradient(135deg, rgba(151, 192, 255, 0.96) 0%, rgba(103, 129, 255, 0.95) 56%, rgba(69, 180, 255, 0.92) 100%);
   color: #091220;
   font-family: var(--font-sans);
@@ -180,12 +184,12 @@
   cursor: pointer;
   transition: transform var(--t-fast), box-shadow var(--t-fast), opacity var(--t-fast);
   white-space: nowrap;
-  box-shadow: 0 16px 28px rgba(54, 95, 214, 0.24);
+  box-shadow: 0 10px 20px rgba(54, 95, 214, 0.18);
 }
 
 .model-picker-custom button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 18px 32px rgba(54, 95, 214, 0.28);
+  box-shadow: 0 12px 24px rgba(54, 95, 214, 0.22);
 }
 
 .model-picker-custom button:disabled {
