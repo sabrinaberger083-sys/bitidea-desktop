@@ -34,7 +34,12 @@ if _ENGINE_DIR not in sys.path:
 
 import uvicorn
 
-from .server import app, get_token
+try:
+    from .server import app, get_token
+except ImportError:
+    # PyInstaller executes this file as a top-level script, so package-relative
+    # imports are unavailable there. Fall back to an absolute package import.
+    from sidecar.server import app, get_token
 
 HOST = "127.0.0.1"
 
