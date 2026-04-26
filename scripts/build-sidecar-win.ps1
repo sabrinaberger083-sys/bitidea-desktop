@@ -84,5 +84,47 @@ if (-not (Test-Path $builtExe)) {
   throw "Built sidecar.exe was not found."
 }
 
-Copy-Item $builtExe $outputFile -Force
+function Test-SameFileContent {
+  param(
+    [string]$Left,
+    [string]$Right
+  )
+
+  try {
+    if (-not (Test-Path $Left) -or -not (Test-Path $Right)) {
+      return $false
+    }
+
+    $leftHash = (Get-FileHash -Path $Left -Algorithm SHA256).Hash
+    $rightHash = (Get-FileHash -Path $Right -Algorithm SHA256).Hash
+    return $leftHash -eq $rightHash
+  }
+  catch {
+    return $false
+  }
+}
+
+$copySucceeded = $false
+$copyError = $null
+
+for ($attempt = 1; $attempt -le 5 -and -not $copySucceeded; $attempt++) {
+  try {
+    Copy-Item $builtExe $outputFile -Force
+    $copySucceeded = $true
+  }
+  catch {
+    $copyError = $_
+    Start-Sleep -Milliseconds 500
+  }
+}
+
+if (-not $copySucceeded) {
+  if (Test-SameFileContent -Left $builtExe -Right $outputFile) {
+    Write-Host "Existing Windows sidecar already matches built artifact: $outputFile"
+  }
+  else {
+    throw "Failed to stage sidecar executable at $outputFile. $($copyError.Exception.Message)"
+  }
+}
+
 Write-Host "Windows sidecar generated: $outputFile"
