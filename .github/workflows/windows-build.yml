@@ -7,7 +7,7 @@ on:
       - feat/agent-integration
 
 jobs:
-  build:
+  installer:
     runs-on: windows-latest
 
     env:
@@ -38,14 +38,42 @@ jobs:
       - name: Build NSIS installer
         run: npm run dist:windows:installer
 
-      - name: Build portable package
-        run: npm run dist:windows:portable
-
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
           name: bitidea-windows-installer
           path: src-tauri/target/release/bundle/nsis/*.exe
+
+  portable:
+    runs-on: windows-latest
+
+    env:
+      CI: "true"
+      BITIDEA_WINDOWS_TARGET_TRIPLE: x86_64-pc-windows-msvc
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build portable package
+        run: npm run dist:windows:portable
 
       - name: Upload portable zip
         uses: actions/upload-artifact@v4
