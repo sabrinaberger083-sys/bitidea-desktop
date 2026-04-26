@@ -3,7 +3,7 @@ param()
 $ErrorActionPreference = "Stop"
 
 if ($env:OS -ne "Windows_NT") {
-  throw "scripts/package-portable-win.ps1 只能在 Windows 上运行。"
+  throw "scripts/package-portable-win.ps1 can only run on Windows."
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -32,18 +32,18 @@ $releaseCandidates += Join-Path $repoRoot "src-tauri\target\release"
 $releaseDir = $releaseCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 
 if (-not $releaseDir) {
-  throw "没有找到 release 目录，请先运行 tauri build。"
+  throw "Release directory was not found. Run tauri build first."
 }
 
 $appExe = Join-Path $releaseDir "bitidea-desktop.exe"
 $sidecarExe = Join-Path $releaseDir "sidecar.exe"
 
 if (-not (Test-Path $appExe)) {
-  throw "没有找到主程序: $appExe"
+  throw "Main executable was not found: $appExe"
 }
 
 if (-not (Test-Path $sidecarExe)) {
-  throw "没有找到 sidecar: $sidecarExe"
+  throw "sidecar.exe was not found: $sidecarExe"
 }
 
 $distRoot = Join-Path $repoRoot "dist\windows"
@@ -60,12 +60,12 @@ Copy-Item $sidecarExe (Join-Path $portableRoot "sidecar.exe") -Force
 Bitidea Windows Portable
 ========================
 
-1. 双击 Bitidea.exe 启动。
-2. 首次运行需要系统已安装 Microsoft WebView2 Runtime。
-3. 这个便携包不会改动你当前的 macOS 配置目录。
+1. Double-click Bitidea.exe to launch.
+2. Microsoft WebView2 Runtime must already be installed.
+3. This portable package does not modify your macOS config directory.
 "@ | Set-Content (Join-Path $portableRoot "README.txt") -Encoding UTF8
 
 Remove-Item $archivePath -Force -ErrorAction SilentlyContinue
 Compress-Archive -Path (Join-Path $portableRoot "*") -DestinationPath $archivePath -Force
 
-Write-Host "便携包已生成: $archivePath"
+Write-Host "Portable package generated: $archivePath"

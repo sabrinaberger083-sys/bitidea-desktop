@@ -5,7 +5,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 if ($env:OS -ne "Windows_NT") {
-  throw "scripts/smoke-sidecar-win.ps1 只能在 Windows 上运行。"
+  throw "scripts/smoke-sidecar-win.ps1 can only run on Windows."
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -28,7 +28,7 @@ if (-not $TargetTriple) {
 
 $exePath = Join-Path $repoRoot "src-tauri\bin\sidecar-$TargetTriple.exe"
 if (-not (Test-Path $exePath)) {
-  throw "没有找到 sidecar 可执行文件: $exePath"
+  throw "sidecar executable was not found: $exePath"
 }
 
 $tmpDir = Join-Path $repoRoot ".cache\sidecar-smoke"
@@ -56,7 +56,7 @@ try {
   while ((Get-Date) -lt $deadline -and -not $readySeen) {
     if ($process.HasExited) {
       $stderr = if (Test-Path $stderrPath) { Get-Content $stderrPath -Raw } else { "" }
-      throw "sidecar 提前退出，退出码 $($process.ExitCode)。stderr: $stderr"
+      throw "sidecar exited early with code $($process.ExitCode). stderr: $stderr"
     }
 
     if (Test-Path $stdoutPath) {
@@ -72,7 +72,7 @@ try {
   if (-not ($portSeen -and $tokenSeen -and $readySeen)) {
     $stdout = if (Test-Path $stdoutPath) { Get-Content $stdoutPath -Raw } else { "" }
     $stderr = if (Test-Path $stderrPath) { Get-Content $stderrPath -Raw } else { "" }
-    throw "sidecar smoke test 未通过。stdout: $stdout stderr: $stderr"
+    throw "sidecar smoke test failed. stdout: $stdout stderr: $stderr"
   }
 
   Write-Host "sidecar smoke test passed: $exePath"
