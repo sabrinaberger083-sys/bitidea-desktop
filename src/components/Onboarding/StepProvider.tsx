@@ -1,5 +1,4 @@
 import Button from '../common/Button';
-import Panel from '../common/Panel';
 import type { Lang, Provider } from '../../types';
 
 interface CardInfo {
@@ -85,8 +84,18 @@ export default function StepProvider({
   onNext,
 }: Props) {
   const L = COPY[lang];
+
+  function handleChoose(provider: Provider) {
+    onSelect(provider);
+  }
+
+  function handleChooseAndContinue(provider: Provider) {
+    onSelect(provider);
+    onNext();
+  }
+
   return (
-    <div style={{ width: '100%' }}>
+    <div className="onb-provider-step">
       <div className="onb-step-head">
         <div className="section-label">{L.label}</div>
         <h2 className="onb-step-title">{L.title}</h2>
@@ -95,22 +104,27 @@ export default function StepProvider({
 
       <div className="provider-grid">
         {PROVIDERS.map((p) => (
-          <Panel
+          <button
             key={p}
-            topStripe
-            hoverGlow
-            corners
-            className={`provider-card ${selected === p ? 'selected' : ''}`}
-            onClick={() => onSelect(p)}
-            role="button"
-            tabIndex={0}
+            type="button"
+            className={`provider-card panel panel-top-stripe panel-hover-glow ${selected === p ? 'selected' : ''}`}
+            onClick={() => handleChoose(p)}
+            onDoubleClick={() => handleChooseAndContinue(p)}
+            aria-pressed={selected === p}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') onSelect(p);
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleChooseAndContinue(p);
+              }
+              if (e.key === ' ') {
+                e.preventDefault();
+                handleChoose(p);
+              }
             }}
           >
             <div className="provider-name">{L.cards[p]?.name ?? p}</div>
             <div className="provider-desc">{L.cards[p]?.desc ?? ''}</div>
-          </Panel>
+          </button>
         ))}
       </div>
 

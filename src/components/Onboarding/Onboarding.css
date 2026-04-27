@@ -1,11 +1,14 @@
 .onb-root {
   min-height: 100vh;
+  min-height: 100dvh;
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   padding: 28px 32px 40px;
   position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 .onb-progress {
   width: 100%;
@@ -31,7 +34,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   padding: 40px 16px;
   width: 100%;
   max-width: 860px;
@@ -99,6 +102,11 @@
   margin: 0 auto;
 }
 
+.onb-provider-step {
+  width: 100%;
+  padding-bottom: 20px;
+}
+
 /* ── Provider cards grid ─────────────────────────────────── */
 .provider-grid {
   display: grid;
@@ -112,6 +120,11 @@
   cursor: pointer;
   text-align: left;
   transition: all var(--t);
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--panel);
+  color: inherit;
 }
 .provider-card .provider-name {
   font-family: var(--font-sans);
@@ -131,6 +144,11 @@
   box-shadow: 0 0 0 1px var(--accent-2), var(--glow-cyan);
 }
 .provider-card.selected .provider-name { color: var(--accent-2); }
+.provider-card:focus-visible {
+  outline: none;
+  border-color: var(--panel-border-strong);
+  box-shadow: 0 0 0 2px rgba(143, 216, 255, 0.24), var(--glow-cyan);
+}
 
 /* ── API-key step ────────────────────────────────────────── */
 .onb-form {
@@ -160,4 +178,56 @@
   justify-content: space-between;
   gap: 12px;
   margin-top: 16px;
+  position: sticky;
+  bottom: 0;
+  padding-top: 16px;
+  padding-bottom: 8px;
+  background: linear-gradient(180deg, rgba(4, 7, 17, 0) 0%, rgba(4, 7, 17, 0.86) 28%, rgba(4, 7, 17, 0.98) 100%);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+@media (max-height: 860px) {
+  .onb-root {
+    padding: 22px 24px 28px;
+  }
+
+  .onb-content {
+    padding: 28px 8px 20px;
+  }
+
+  .onb-step-head {
+    margin-bottom: 28px;
+  }
+
+  .provider-grid {
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .provider-card {
+    padding: 18px 18px;
+  }
+}
+
+@media (max-width: 720px) {
+  .onb-root {
+    padding: 20px 18px 24px;
+  }
+
+  .onb-content {
+    padding: 24px 0 20px;
+  }
+
+  .provider-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .onb-nav {
+    flex-direction: column-reverse;
+  }
+
+  .onb-nav .btn {
+    width: 100%;
+  }
 }

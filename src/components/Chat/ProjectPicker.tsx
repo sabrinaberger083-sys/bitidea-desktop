@@ -193,7 +193,7 @@ export default function ProjectPicker({ lang, currentProjectId, onProjectChange 
   }
 
   return (
-    <div className="project-picker" ref={dropdownRef}>
+    <div className={`project-picker${open_ ? ' project-picker-open' : ''}`} ref={dropdownRef}>
       <button
         type="button"
         className="project-picker-toggle"

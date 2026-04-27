@@ -176,6 +176,21 @@
 
 @media (max-width: 1360px) {
   .chat-topbar {
+    gap: 12px;
+    padding: 20px 24px 16px;
+  }
+
+  .chat-topbar-main {
+    gap: 12px;
+  }
+
+  .chat-topbar-actions {
+    gap: 8px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .chat-topbar {
     flex-wrap: wrap;
     align-items: flex-start;
     gap: 12px;
