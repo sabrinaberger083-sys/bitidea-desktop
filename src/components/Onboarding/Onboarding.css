@@ -180,7 +180,6 @@
 .onb-form .field { display: flex; flex-direction: column; gap: 6px; }
 
 .onb-model-picker {
-  position: relative;
   width: 100%;
 }
 
@@ -208,18 +207,17 @@
 }
 
 .onb-model-menu {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 8px);
-  z-index: 50;
-  max-height: 220px;
+  position: relative;
+  width: 100%;
+  max-height: min(300px, 38vh);
   overflow-y: auto;
-  padding: 6px;
+  margin-top: 8px;
+  padding: 8px;
   border: 1px solid var(--panel-border-strong);
-  border-radius: 14px;
-  background: #101735;
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: #071022;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  scrollbar-color: rgba(143, 216, 255, 0.48) rgba(255, 255, 255, 0.06);
 }
 
 .onb-model-option {
@@ -227,14 +225,17 @@
   min-height: 42px;
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   padding: 9px 12px;
   border: 1px solid transparent;
   border-radius: 10px;
   background: transparent;
-  color: var(--ink);
+  color: #f8fbff;
   cursor: pointer;
   text-align: left;
   font: inherit;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
 }
 
 .onb-model-option:hover,

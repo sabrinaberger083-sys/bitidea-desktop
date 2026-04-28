@@ -41,7 +41,7 @@ const COPY = {
 };
 
 const DEFAULT_MODELS: Partial<Record<Provider, string[]>> = {
-  openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'o4-mini'],
+  openai: ['gpt-5.4', 'gpt-4.1-mini', 'gpt-4o-mini', 'gpt-4o', 'o4-mini'],
   openrouter: [
     'anthropic/claude-3.5-sonnet',
     'anthropic/claude-3.5-haiku',
