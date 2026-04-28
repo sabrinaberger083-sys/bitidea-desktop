@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Button from '../common/Button';
 import type { Lang, Provider } from '../../types';
 import { saveConfig, testConnection } from '../../lib/sidecar';
@@ -90,9 +90,11 @@ export default function StepApiKey({
 
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState<string>(models[0]);
+  const [modelOpen, setModelOpen] = useState(false);
   const [baseUrl, setBaseUrl] = useState('');
   const [test, setTest] = useState<TestState>({ kind: 'idle' });
   const [saving, setSaving] = useState(false);
+  const modelPickerRef = useRef<HTMLDivElement>(null);
 
   const canSubmit =
     apiKey.trim().length > 0 &&
@@ -133,8 +135,24 @@ export default function StepApiKey({
     }
   }
 
+  useEffect(() => {
+    setModel(models[0]);
+    setModelOpen(false);
+  }, [models]);
+
+  useEffect(() => {
+    if (!modelOpen) return;
+    function handlePointerDown(e: PointerEvent) {
+      if (!modelPickerRef.current?.contains(e.target as Node)) {
+        setModelOpen(false);
+      }
+    }
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => window.removeEventListener('pointerdown', handlePointerDown);
+  }, [modelOpen]);
+
   return (
-    <div style={{ width: '100%' }}>
+    <div className="onb-api-step">
       <div className="onb-step-head">
         <div className="section-label">{L.label}</div>
         <h2 className="onb-step-title">{L.title}</h2>
@@ -178,15 +196,46 @@ export default function StepApiKey({
 
         <div className="field">
           <label className="label">{L.model}</label>
-          <select
-            className="select mono"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-          >
-            {models.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
+          <div className="onb-model-picker" ref={modelPickerRef}>
+            <button
+              type="button"
+              className="select onb-model-trigger mono"
+              aria-haspopup="listbox"
+              aria-expanded={modelOpen}
+              onClick={() => setModelOpen((open) => !open)}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setModelOpen(true);
+                }
+                if (e.key === 'Escape') {
+                  setModelOpen(false);
+                }
+              }}
+            >
+              <span>{model}</span>
+              <span className="onb-model-chevron" aria-hidden>⌄</span>
+            </button>
+            {modelOpen && (
+              <div className="onb-model-menu mono" role="listbox" aria-label={L.model}>
+                {models.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    className={`onb-model-option${model === m ? ' selected' : ''}`}
+                    role="option"
+                    aria-selected={model === m}
+                    onClick={() => {
+                      setModel(m);
+                      setModelOpen(false);
+                    }}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="onb-test-row">
